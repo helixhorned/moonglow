@@ -9,6 +9,8 @@ local glconsts = require("glconsts")
 local GL = glconsts.GL
 local GLUT = glconsts.GLUT
 
+local garray = require("garray")
+
 
 local bit = require("bit")
 
@@ -96,6 +98,63 @@ function glow.clear(tab)
         gl.glClearColor(tab[1], tab[2], tab[3], 0)
     end
     gl.glClear(GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT)
+end
+
+-- glow.setup2d(w, h [, z0 [, z1]])
+function glow.setup2d(w, h, z0, z1)
+    gl.glViewport(0, 0, w, h)
+
+    gl.glMatrixMode(GL.PROJECTION)
+    gl.glLoadIdentity()
+    local ofs = 0.5
+    gl.glOrtho(ofs, w+ofs, ofs, h+ofs, z0 or -1, z1 or 1)
+
+    gl.glMatrixMode(GL.MODELVIEW)
+    gl.glLoadIdentity()
+end
+
+
+-- verts -> e.g. GL.INT
+local verts_gltype = {
+    short = GL.SHORT, int16_t = GL.SHORT,
+    int = GL.INT, int32_t = GL.INT,
+    float = GL.FLOAT,
+    double = GL.DOUBLE,
+}
+
+local function getVertsType(verts)
+    local ts = verts:basetypestr()
+    return verts_gltype[ts] or error("invalid base type "..ts, 3)
+end
+
+-- glow.draw(primtype, verts [, opts])
+--
+-- <primtype>: OpenGL primitive type (GL.LINES etc.)
+-- <verts>: a garray...
+-- <opts>: a table...
+function glow.draw(primitivetype, verts, opts)
+    assert(garray.is(verts) and verts.ndims==2, "<verts> must be a garray matrix")
+
+    local numdims = verts.size[0]
+    assert(numdims>=2 and numdims<=4, "<verts> must have 2, 3 or 4 or columns")
+    local numverts = verts.size[1]
+    local gltyp = getVertsType(verts)
+
+    opts = opts or {}
+
+    gl.glPolygonMode(GL.FRONT_AND_BACK, opts.line and GL.LINE or GL.FILL)
+
+    local col = opts.colors
+    if (col) then
+        gl.glColor3d(col[1], col[2], col[3])
+    else
+        gl.glColor3d(0.5, 0.5, 0.5)
+    end
+
+    gl.glVertexPointer(numdims, gltyp, 0, verts.v)
+    gl.glEnableClientState(GL.VERTEX_ARRAY)
+
+    gl.glDrawArrays(primitivetype, 0, numverts)
 end
 
 
