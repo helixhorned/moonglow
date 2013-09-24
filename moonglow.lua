@@ -43,6 +43,7 @@ function glow.window(opts, callbacks)
     local extent = opts.extent or {800, 600}
     local name = opts.name or "MoonGLow window"
     local mode = opts.mode or bit.bor(GLUT.DOUBLE, GLUT.DEPTH, GLUT.RGBA)
+        -- +GLUT.MULTISAMPLE  --DEBUG
 
     if (glut.glutGet(GLUT.INIT_STATE) == 0) then
         -- A single trailing NULL, for consistency w/ what C99 mandates:
@@ -100,17 +101,39 @@ function glow.clear(tab)
     gl.glClear(GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT)
 end
 
--- glow.setup2d(w, h [, z0 [, z1]])
-function glow.setup2d(w, h, z0, z1)
+local inv_y_mat = ffi.new("double [16]",
+{
+    1, 0, 0, 0;
+    0,-1, 0, 0;
+    0, 0, 1, 0;
+    0, 7, 0, 1;  -- [13]: height+1
+})
+
+-- glow.setup2d(w, h, base, [, invy])
+--
+-- <base>: (<base>,<base>) is corner pixel
+--  (only 0 and 1 tested)
+-- Easiest to work with, consistent with mouse coords in FreeGLUT:
+-- <base> is 0, <invy> is true
+-- TODO: ^make default
+function glow.setup2d(w, h, base, invy)
     gl.glViewport(0, 0, w, h)
 
     gl.glMatrixMode(GL.PROJECTION)
     gl.glLoadIdentity()
-    local ofs = 0.5
-    gl.glOrtho(ofs, w+ofs, ofs, h+ofs, z0 or -1, z1 or 1)
+    local ofs = base - 0.5
+    gl.glOrtho(ofs, w+ofs, ofs, h+ofs, -1, 1)
 
     gl.glMatrixMode(GL.MODELVIEW)
-    gl.glLoadIdentity()
+
+    if (not invy) then
+        -- (<base>, <base>): lower left corner
+        gl.glLoadIdentity()
+    else
+        -- (<base>, <base>): upper left corner
+        inv_y_mat[13] = h - 1 + 2*base
+        gl.glLoadMatrixd(inv_y_mat)
+    end
 end
 
 
