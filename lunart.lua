@@ -3,6 +3,8 @@
 local glow = require("moonglow")
 local gl, glut, GL, GLUT = glow.gl, glow.glut, glow.GL, glow.GLUT
 
+local B = require("build")
+
 local garray = require("garray")
 local ga_double = garray.newType("double")
 local ga_int = garray.newType("int")
@@ -14,6 +16,13 @@ local assert = assert
 local math = require("math")
 local cos, sin = math.cos, math.sin
 local max = math.max
+
+local bit = require("bit")
+local ffi = require("ffi")
+local io = require("io")
+local os = require("os")
+
+local arg = arg
 
 
 -- Create a 2xN 'int' garray matrix from <tab>.
@@ -51,25 +60,8 @@ local function display()
 
     glow.clear({ 0.9, 0.9, 0.9 })
 
-    if (d.tex == 0) then
-        local ph, pw = 128, 256
-        local pic = ga_uint8(ph, pw, {})
-        for r = 0,ph-1 do
-            for c = 0,pw-1 do
-                pic:set(r, c, max(r, c))
-            end
-        end
-
-        local pic2 = ga_uint32(ph, pw, {})
-        for i = 0,ph*pw-1 do
-            pic2.v[i] = pic.v[i]*65536
-        end
-
-        d.tex = glow.texture(pic)
-    end
-
     local w, h = d.w, d.h
-    local v = ivec2{10,10; 10,h/2; w/2,h/2; w/2,10}
+    local v = ivec2{10,10; w/2,10; w/2,h/2; 10,h/2}
     glow.draw(GL.QUADS, v, {colors={1,1,1}, tex=d.tex,
                             texcoords = dvec2{0,0; 0,1; 1,1; 1,0}})
 
@@ -102,6 +94,56 @@ local callbacks = {
 }
 
 
+local function doexit(fmt, ...)
+    local msg = string.format(fmt, ...)
+    io.stderr:write(msg)
+    os.exit(1)
+end
+
+local function expand_basepal(basepal)
+    local bpu = ga_uint32(768)
+    for i=0,768-1 do
+        local color = basepal[3*i+0] + 256*basepal[3*i+1] + 65536*basepal[3*i+2]
+        if (ffi.abi("be")) then
+            color = bit.bswap(color)
+        end
+        bpu.v[i] = color
+    end
+    return bpu
+end
+
+-- <d>: table with some initialized fields
+local function initAppData(d)
+    local palfn, artfn, ltile = arg[1], arg[2], tonumber(arg[3])
+    if (palfn==nil or artfn==nil or ltile==nil) then
+        doexit("Usage: %s /path/to/PALETTE.DAT /path/to/TILES?.ART ltilenum\n", arg[0])
+    end
+
+    local palette, errmsg = B.read_basepal(palfn)
+    if (palette == nil) then
+        doexit("Failed reading %s: %s", palfn, errmsg)
+    end
+    palette = expand_basepal(palette)
+
+    local artf, errmsg = B.artfile(artfn)
+    if (artf == nil) then
+        doexit("Failed reading %s: %s", artfn, errmsg)
+    end
+
+    local img = artf:getpic(ltile)
+    local pw, ph = artf:dims(ltile)
+
+    local teximg = ga_uint32(pw,ph)
+    for i=0,pw*ph-1 do
+        teximg.v[i] = palette.v[img[i]]
+    end
+
+    d.tex = glow.texture(teximg, {filter=GL.NEAREST})
+
+    return d
+end
+
+
 local function createWindow()
     local win = glut.glutGetWindow()
     local pos = (win==0) and {500, 400} or
@@ -114,7 +156,7 @@ local function createWindow()
     glut.glutSetCursor(GLUT.CURSOR_CROSSHAIR)
 
     -- App data for this window. Don't init width/height yet.
-    g_data[wi] = { w=0, h=0, mx=0, my=0, mdown=false, tex=0 }
+    g_data[wi] = initAppData{ w=0, h=0, mx=0, my=0, mdown=false, tex=0 }
 end
 
 
