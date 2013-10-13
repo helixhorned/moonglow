@@ -121,7 +121,7 @@ function garray.newType(basetype)
         sz2 = sz2 or 1
         -- XXX: may have sz1*sz2 ~= 0 but (int)sz1*(int)sz2 == 0
         assert(sz1*sz2 > 0, "Empty arrays not supported")
-        return typ(sz1*sz2, sz2~=0 and 2 or 1, { sz1, sz2 }, vals)
+        return typ(sz1*sz2, 2, { sz1, sz2 }, vals or {})
     end
     return constructor
 end

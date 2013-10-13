@@ -253,7 +253,7 @@ function glow.texture(pic, opts)
     gl.glPixelStorei(GL.UNPACK_ALIGNMENT, glformat==GL.RGB and 1 or ffi.alignof(ts))
 
     -- Proxy check first
-    gl.glTexImage2D(GL.PROXY_TEXTURE_2D, 0, glformat, numrows, numcols,
+    gl.glTexImage2D(GL.PROXY_TEXTURE_2D, 0, glformat, numcols, numrows,
                     0, glformat, gltyp, nil)
     local tmpwidthar = ffi.new("GLint [1]")
     gl.glGetTexLevelParameteriv(GL.PROXY_TEXTURE_2D, 0, GL.TEXTURE_WIDTH, tmpwidthar)
@@ -263,8 +263,10 @@ function glow.texture(pic, opts)
         error("cannot accomodate texture")
     end
 
-    -- XXX: numrows/numcols other way around than ART format (column-major)?
-    gl.glTexImage2D(GL.TEXTURE_2D, 0, glformat, numrows, numcols,
+    -- NOTE:
+    --  numcols corresponds to width
+    --  numrows corresponds to height
+    gl.glTexImage2D(GL.TEXTURE_2D, 0, glformat, numcols, numrows,
                     0, glformat, gltyp, pic.v)
     return texname
 end
