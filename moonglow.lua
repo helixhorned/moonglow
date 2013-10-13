@@ -50,6 +50,7 @@ function glow.window(opts, callbacks)
         local argvDummy = ffi.new("char *[1]")
         local argcDummyAr = ffi.new("int [1]")
 
+        -- NOTE: omitting vararg part in Lua callback function (LuaJIT NYI)
         glut.glutInitErrorFunc(function(fmt) error(ffi.string(fmt)) end)
         glut.glutInit(argcDummyAr, argvDummy)
         glut.glutSetOption(GLUT.ACTION_ON_WINDOW_CLOSE, GLUT.ACTION_CONTINUE_EXECUTION)
@@ -66,6 +67,10 @@ function glow.window(opts, callbacks)
     if (winid <= 0) then
         error("Failed creating window")
     end
+
+    -- Post-window-creation setup
+
+    gl.glBlendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
 
     for cbname, cbfunc in pairs(callbacks) do
         -- Uncomment to make e.g. both 'display' and 'Display' valid:
@@ -138,16 +143,29 @@ end
 
 
 -- verts -> e.g. GL.INT
-local verts_gltype = {
+local gltype_verts = {
     short = GL.SHORT, int16_t = GL.SHORT,
     int = GL.INT, int32_t = GL.INT,
     float = GL.FLOAT,
     double = GL.DOUBLE,
 }
 
+-- Additional valid types for textures
+local gltype_tex = {
+    int8_t = GL.BYTE,
+    uint8_t = GL.UNSIGNED_BYTE,
+    uint16_t = GL.UNSIGNED_SHORT,
+    uint32_t = GL.UNSIGNED_INT,
+}
+
 local function getVertsType(verts)
     local ts = verts:basetypestr()
-    return verts_gltype[ts] or error("invalid base type "..ts, 3)
+    return gltype_verts[ts] or error("invalid vertex base type "..ts, 3)
+end
+
+local function getTexType(pic)
+    local ts = pic:basetypestr()
+    return gltype_verts[ts] or gltype_tex[ts] or error("invalid texture base type "..ts, 3)
 end
 
 -- glow.draw(primtype, verts [, opts])
@@ -156,7 +174,7 @@ end
 -- <verts>: a garray...
 -- <opts>: a table...
 function glow.draw(primitivetype, verts, opts)
-    assert(garray.is(verts) and verts.ndims==2, "<verts> must be a garray matrix")
+    assert(garray.is(verts, 2), "<verts> must be a garray matrix")
 
     local numdims = verts.size[0]
     assert(numdims>=2 and numdims<=4, "<verts> must have 2, 3 or 4 or columns")
@@ -165,8 +183,6 @@ function glow.draw(primitivetype, verts, opts)
 
     opts = opts or {}
 
-    gl.glPolygonMode(GL.FRONT_AND_BACK, opts.line and GL.LINE or GL.FILL)
-
     local col = opts.colors
     if (col) then
         gl.glColor3d(col[1], col[2], col[3])
@@ -174,10 +190,83 @@ function glow.draw(primitivetype, verts, opts)
         gl.glColor3d(0.5, 0.5, 0.5)
     end
 
-    gl.glVertexPointer(numdims, gltyp, 0, verts.v)
+    local tex, texcoords = opts.tex, opts.texcoords
+    if (tex) then
+        if (texcoords == nil) then
+            error("When passing texture, must also pass texture coordinates (<texcoords>)", 2)
+        end
+
+        assert(garray.is(texcoords, 2), "<texcoords> must be a garray matrix")
+        assert(texcoords:basetypestr() == "double",
+               "<texcoords> must have base type 'double'")  -- Other types: NYI
+        assert(texcoords.size[0]==2 and texcoords.size[1]==numverts,
+               "<texcoords> must have as many coordinate pairs as there are vertices")
+
+        -- Sanity checking OK, specify the texture and coords to the GL.
+        gl.glEnable(GL.TEXTURE_2D)
+        gl.glBindTexture(GL.TEXTURE_2D, tex)
+
+        gl.glEnableClientState(GL.TEXTURE_COORD_ARRAY)
+        gl.glTexCoordPointer(2, GL.DOUBLE, 0, texcoords.v)
+    else
+        gl.glDisable(GL.TEXTURE_2D)
+        gl.glDisableClientState(GL.TEXTURE_COORD_ARRAY)
+    end
+
+    gl.glPolygonMode(GL.FRONT_AND_BACK, opts.line and GL.LINE or GL.FILL)
+
     gl.glEnableClientState(GL.VERTEX_ARRAY)
+    gl.glVertexPointer(numdims, gltyp, 0, verts.v)
 
     gl.glDrawArrays(primitivetype, 0, numverts)
+end
+
+-- gltexname = glow.texture(pic [, opts])
+--
+-- <pic>: a garray, currently only (numrows, numcols)
+function glow.texture(pic, opts)
+    assert(garray.is(pic, 2), "<pic> must be a garray matrix")
+
+    local ts = pic:basetypestr()
+    assert(ts=="uint8_t" or ts=="uint32_t", "Texture types other than uint8_t or uint32_t: NYI")
+
+    local numrows, numcols = pic:dims()
+    local gltyp = GL.UNSIGNED_BYTE  -- getTexType(pic)
+
+    local texnamear = ffi.new("GLuint [1]")
+    gl.glGenTextures(1, texnamear)
+    local texname = texnamear[0]
+
+    gl.glBindTexture(GL.TEXTURE_2D, texname)
+
+    local opts = opts or {}
+
+    local wrap = opts.wrap or GL.CLAMP_TO_EDGE
+    local filter = opts.filter or GL.LINEAR
+
+    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, wrap)
+    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, wrap)
+    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, filter)
+    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, filter)
+
+    local glformat = (ts=="uint32_t") and GL.RGBA or GL.LUMINANCE
+    gl.glPixelStorei(GL.UNPACK_ALIGNMENT, glformat==GL.RGB and 1 or ffi.alignof(ts))
+
+    -- Proxy check first
+    gl.glTexImage2D(GL.PROXY_TEXTURE_2D, 0, glformat, numrows, numcols,
+                    0, glformat, gltyp, nil)
+    local tmpwidthar = ffi.new("GLint [1]")
+    gl.glGetTexLevelParameteriv(GL.PROXY_TEXTURE_2D, 0, GL.TEXTURE_WIDTH, tmpwidthar)
+
+    if (tmpwidthar[0] == 0) then
+        gl.glDeleteTextures(1, texnamear)
+        error("cannot accomodate texture")
+    end
+
+    -- XXX: numrows/numcols other way around than ART format (column-major)?
+    gl.glTexImage2D(GL.TEXTURE_2D, 0, glformat, numrows, numcols,
+                    0, glformat, gltyp, pic.v)
+    return texname
 end
 
 

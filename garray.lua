@@ -50,6 +50,20 @@ local garray_mt = {
             return self.size[0] * self.size[1]
         end,
 
+        -- XXX: rename to size()?
+        dims = function(self)
+            return self.size[0], self.size[1]
+        end,
+--[[
+        samesize = function(self, other)
+            if (not garray.is(other, self.ndims)) then
+                return false
+            end
+
+            return self.size[0]==other.size[0]
+                and self.size[1]==other.size[1]
+        end,
+--]]
         basetypestr = function(self)
             local typnum = tonumber(ffi.typeof(self))
             return garray_basetypestr[typnum]
@@ -82,6 +96,17 @@ local garray_mt = {
                 return self.v[i]
             end
         end,
+
+        -- XXX: CODEDUP with checking
+        set = function(self, i, j, val)
+            self:_bcheck(0, i)
+            if (self.ndims > 1) then
+                self:_bcheck(1, j)
+                self.v[self:_i(i, j)] = val
+            else
+                assert("Vector assignment: NYI")
+            end
+        end,
     },
 }
 
@@ -101,10 +126,11 @@ function garray.newType(basetype)
     return constructor
 end
 
--- garray.is(val)
--- Check whether <val> is a garray.
-function garray.is(val)
-    return (type(val)=="cdata" and garray_basetypestr[tonumber(ffi.typeof(val))]~=nil)
+-- garray.is(val [, reqd_ndims])
+-- Check whether <val> is a garray, and optionally whether it has <reqd_ndims> dims.
+function garray.is(val, reqd_ndims)
+    local isga = (type(val)=="cdata" and garray_basetypestr[tonumber(ffi.typeof(val))]~=nil)
+    return isga and (reqd_ndims==nil or val.ndims==reqd_ndims)
 end
 
 
