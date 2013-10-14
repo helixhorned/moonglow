@@ -61,7 +61,7 @@ end
 local function display()
     local d = getdata()
 
-    glow.clear({ 0.9, 0.9, 0.9 })
+    glow.clear(0.9)
 
     local w, h = d.w, d.h
     local v = ivec2{10,10; w/2,10; w/2,h/3; 10,h/3}

@@ -123,12 +123,14 @@ function glow.mainloop()
     end
 end
 
-function glow.clear(tab)
-    if (tab.r) then
-        gl.glClearColor(tab.r, tab.g, tab.b, 0)
-    else
-        gl.glClearColor(tab[1], tab[2], tab[3], 0)
-    end
+-- glow.clear(r [, g [, b]])
+--
+-- defaults:
+--  for g, value of r
+--  for b, value of g
+function glow.clear(r, g, b)
+    g = g or r
+    gl.glClearColor(r, g, b or g, 0)
     gl.glClear(GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT)
 end
 
