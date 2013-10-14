@@ -30,7 +30,7 @@ end
 local function reshape(w, h)
     local d = getdata()
 
-    glow.setup2d(w, h, 0, true)
+    glow.setup2d(w, h)
     d.w = w
     d.h = h
 end

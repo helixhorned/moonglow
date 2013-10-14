@@ -1,6 +1,7 @@
 -- MoonGLow, a LuaJIT-based interface to FreeGLUT and a subset of OpenGL.
 
 local ffi = require("ffi")
+local jit = require("jit")
 
 local gl = ffi.load("GL")
 local glut = ffi.load("glut")
@@ -23,6 +24,30 @@ local type = type
 
 require("gldecls")
 
+-- Get font constants.
+local FONT_ROMAN
+local FONT_MONO
+
+if (jit.os == "Windows") then
+    error("NYI")
+else
+--[[
+    In freeglut.h, we have:
+
+      /* I don't really know if it's a good idea... But here it goes: */
+      extern void* glutStrokeRoman;
+      #define  GLUT_STROKE_ROMAN ((void *)&glutStrokeRoman)
+
+    Now, we *misdeclare* it so we can get its address.
+--]]
+    ffi.cdef[[
+extern void* glutStrokeRoman[1];
+extern void* glutStrokeMonoRoman[1];
+]]
+    FONT_ROMAN = ffi.cast("void *", glut.glutStrokeRoman)
+    FONT_MONO = ffi.cast("void *", glut.glutStrokeMonoRoman)
+end
+
 ----------
 
 -- The table that will contain our exported functions.
@@ -43,7 +68,6 @@ function glow.window(opts, callbacks)
     local extent = opts.extent or {800, 600}
     local name = opts.name or "MoonGLow window"
     local mode = opts.mode or bit.bor(GLUT.DOUBLE, GLUT.DEPTH, GLUT.RGBA)
-        -- +GLUT.MULTISAMPLE  --DEBUG
 
     if (glut.glutGet(GLUT.INIT_STATE) == 0) then
         -- A single trailing NULL, for consistency w/ what C99 mandates:
@@ -71,6 +95,8 @@ function glow.window(opts, callbacks)
     -- Post-window-creation setup
 
     gl.glBlendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+    gl.glHint(GL.POINT_SMOOTH_HINT, GL.NICEST)
+    gl.glHint(GL.LINE_SMOOTH_HINT, GL.NICEST)
 
     for cbname, cbfunc in pairs(callbacks) do
         -- Uncomment to make e.g. both 'display' and 'Display' valid:
@@ -111,17 +137,24 @@ local inv_y_mat = ffi.new("double [16]",
     1, 0, 0, 0;
     0,-1, 0, 0;
     0, 0, 1, 0;
-    0, 7, 0, 1;  -- [13]: height+1
+    0, 7, 0, 1;  -- [13]: height +/- 1
 })
 
--- glow.setup2d(w, h, base, [, invy])
+local g_last_invy = false
+
+-- glow.setup2d(w, h, [base, [, dontinvy]])
 --
 -- <base>: (<base>,<base>) is corner pixel
 --  (only 0 and 1 tested)
 -- Easiest to work with, consistent with mouse coords in FreeGLUT:
--- <base> is 0, <invy> is true
--- TODO: ^make default
-function glow.setup2d(w, h, base, invy)
+-- <base> is 0, <dontinvy> is false
+function glow.setup2d(w, h, base, dontinvy)
+    if (base == nil) then
+        base = 0
+    end
+
+    g_last_invy = not dontinvy
+
     gl.glViewport(0, 0, w, h)
 
     gl.glMatrixMode(GL.PROJECTION)
@@ -131,7 +164,7 @@ function glow.setup2d(w, h, base, invy)
 
     gl.glMatrixMode(GL.MODELVIEW)
 
-    if (not invy) then
+    if (dontinvy) then
         -- (<base>, <base>): lower left corner
         gl.glLoadIdentity()
     else
@@ -224,6 +257,11 @@ end
 -- gltexname = glow.texture(pic [, opts])
 --
 -- <pic>: a garray, currently only (numrows, numcols)
+-- TODO: a means of specifying that uint32_t is to be interpreted as RGBA
+--       uint8_t (as it is currently).
+-- Valid opts keys:
+--  wrap (e.g. GL.CLAMP)
+--  filter (e.g. GL.LINEAR)
 function glow.texture(pic, opts)
     assert(garray.is(pic, 2), "<pic> must be a garray matrix")
 
@@ -269,6 +307,124 @@ function glow.texture(pic, opts)
     gl.glTexImage2D(GL.TEXTURE_2D, 0, glformat, numcols, numrows,
                     0, glformat, gltyp, pic.v)
     return texname
+end
+
+
+-- FreeGLUT's Roman font characteristics --
+-- The width of the space and all characters for the monospaced font:
+local SPCWIDTH = 104.762
+local FONTHEIGHT = 119.05
+
+local map_xyalign = { [-1]=0.0, [0]=0.5, [1]=1.0 }
+local SPACE_REPL_CHAR = string.byte('t')
+
+-- glow.text(pos, height, str [, xyalign_or_opts [, opts]])
+-- [ That is, one of
+--    glow.text(pos, height, str)
+--    glow.text(pos, height, str, xyalign)
+--    glow.text(pos, height, str, opts)
+--    glow.text(pos, height, str, xyalign, opts)
+-- ]
+--
+-- Valid opts keys:
+--  color (sequence containing 3 numbers (0.0--1.0))
+--  xgap (in monofont letter widths)
+--  mono (monospaced?)
+--  getw (only get width, don't draw?)
+function glow.text(pos, height, str, xyalign, opts)
+    local have_xyalign = (xyalign ~= nil and xyalign[1] ~= nil)
+
+    if (not have_xyalign) then
+        xyalign = { 0, 0 }  -- corresponds to passed {-1, -1}
+    else
+        xyalign[1] = map_xyalign(xyalign[1])
+        xyalign[2] = map_xyalign(xyalign[2])
+    end
+    local xalign, yalign = xyalign[1], xyalign[2]
+
+    opts = opts or (not have_xyalign and xyalign) or {}
+
+    local color = { 0.2, 0.2, 0.2 } or opts.color
+
+    -- xspacing default was determined to look good by trial/error:
+    local xspacing = opts.xgap and opts.xgap*SPCWIDTH or FONTHEIGHT/10.0
+    local font = opts.mono and FONT_MONO or FONT_ROMAN
+
+    assert(type(pos) == "table", "<pos> must be a table")
+    assert(#pos == 2 or #pos == 3, "<pos> must have length 2 or 3")
+
+    local cstr = ffi.new("char [?]", #str+1, str)
+    local isspace = ffi.new("bool [?]", #str)
+
+    for i=0,#str-1 do
+        if (cstr[i] == 32) then
+            cstr[i] = SPACE_REPL_CHAR
+            isspace[i] = true
+        end
+    end
+
+    local textlen
+
+    if (xalign ~= 0 or opts.getw) then
+        -- XXX: if the string contains a newline, this will be wrong.
+        local strokeslen = glut.glutStrokeLength(font, cstr)
+        textlen = (strokeslen + (#str-1)*xspacing)
+
+        if (opts.getw) then
+            return textlen
+        end
+    end
+
+    -- Prepare drawing the text...
+
+    gl.glMatrixMode(GL.MODELVIEW)
+    gl.glPushMatrix()
+    gl.glPushAttrib(bit.bor(GL.CURRENT_BIT, GL.ENABLE_BIT, GL.COLOR_BUFFER_BIT))
+
+    gl.glColor4d(color[1], color[2], color[3], 1)
+    gl.glDisable(GL.TEXTURE_2D)
+
+    gl.glEnable(GL.LINE_SMOOTH)
+    gl.glEnable(GL.BLEND)
+    gl.glBlendEquation(GL.FUNC_ADD)
+
+    gl.glTranslated(pos[1], pos[2], #pos==2 and 0.0 or pos[3])
+
+    gl.glScaled(height/FONTHEIGHT, height/FONTHEIGHT, height/FONTHEIGHT)
+
+    if (g_last_invy) then
+        inv_y_mat[13] = 0
+        gl.glMultMatrixd(inv_y_mat)
+    end
+
+    if (yalign ~= 0.0) then  -- y-align
+        gl.glTranslated(0, -yalign*FONTHEIGHT, 0)
+    end
+
+    if (xalign ~= 0.0) then
+        -- TODO: proper newline handling (see above)?
+        gl.glTranslated(-xalign*textlen, 0, 0)
+    end
+
+    -- Draw it at last!
+    for i=0,#str-1 do
+        local ch = cstr[i]
+
+        if (isspace[i]) then
+            gl.glColor4d(0, 0, 0, 0)
+            glut.glutStrokeCharacter(font, SPACE_REPL_CHAR)
+            gl.glColor4d(color[1], color[2], color[3], 1)
+        else
+            glut.glutStrokeCharacter(font, ch)
+        end
+
+        -- Add a bit of spacing, since by default, GLUT's stroke text
+        -- looks too cramped...
+        gl.glTranslated(xspacing, 0, 0)
+    end
+
+    gl.glPopMatrix()
+    gl.glPopAttrib()
 end
 
 

@@ -22,6 +22,9 @@ local ffi = require("ffi")
 local io = require("io")
 local os = require("os")
 
+local string = require("string")
+local format = string.format
+
 local arg = arg
 
 
@@ -50,7 +53,7 @@ end
 local function reshape(w, h)
     local d = getdata()
 
-    glow.setup2d(w, h, 0, true)
+    glow.setup2d(w, h)
     d.w = w
     d.h = h
 end
@@ -61,9 +64,12 @@ local function display()
     glow.clear({ 0.9, 0.9, 0.9 })
 
     local w, h = d.w, d.h
-    local v = ivec2{10,10; w/2,10; w/2,h/2; 10,h/2}
+    local v = ivec2{10,10; w/2,10; w/2,h/3; 10,h/3}
     glow.draw(GL.QUADS, v, {colors={1,1,1}, tex=d.tex,
                             texcoords = dvec2{0,0; 0,1; 1,1; 1,0}})
+
+    local ti = d.tileinf
+    glow.text({20, h/3+20}, 14, format("Tile %d: %d x %d", ti.num, ti.w, ti.h))
 
     assert(gl.glGetError() == GL.NO_ERROR)
 
@@ -132,6 +138,8 @@ local function initAppData(d)
 
     local img = artf:getpic(ltile)
     local pw, ph = artf:dims(ltile)
+
+    d.tileinf = { num=ltile, w=pw, h=ph }
 
     local teximg = ga_uint32(pw,ph)
     for i=0,pw*ph-1 do
