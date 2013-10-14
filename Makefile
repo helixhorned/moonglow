@@ -8,11 +8,16 @@ FREEGLUT_H := /usr/local/include/GL/freeglut.h
 LJCLANG_DIR := $(THIS_DIR)/../ljclang
 extractdecls := LD_LIBRARY_PATH=$(LJCLANG_DIR) LUA_PATH=";;$(LJCLANG_DIR)/?.lua" $(luajit) $(LJCLANG_DIR)/extractdecls.lua -Q
 
+so := .so
+WARN := -pedantic -Wall -Werror-implicit-function-declaration
+CFLAGS :=
 
 DECLS_LUA = gldecls.lua
 CONSTS_LUA = glconsts.lua
 
-.PHONY: bootstrap
+.PHONY: bootstrap all
+
+all: bootstrap #moonglow-aux$(so)
 
 # for the TypedefDecl, e.g. -x 'ARB$' doesn't exclude
 # for the last FunctionDecl, e.g. -x 'ARB$' gives Bash syntax error (???)
@@ -33,3 +38,6 @@ bootstrap:
 	@echo '}]])' >> $(CONSTS_LUA)
 	@echo 'return {GL=GL,GLUT=GLUT}' >> $(CONSTS_LUA)
 	@printf "\033[1mGenerated $(CONSTS_LUA)\033[0m\n"
+
+moonglow-aux$(so): moonglow-aux.c
+	$(CC) $(WARN) $(CFLAGS) -shared -fPIC $< -o $@
