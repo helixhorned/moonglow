@@ -58,6 +58,13 @@ local function reshape(w, h)
     d.h = h
 end
 
+local function ptinrect(x, y, r)
+    local nr, nc = r:dims()
+    return nr==2 and nc==2 and
+        r.v[0] <= x and r.v[1] <= y and
+        x <= r.v[2] and y <= r.v[3]
+end
+
 local function display()
     local d = getdata()
 
@@ -68,6 +75,11 @@ local function display()
     glow.draw(GL.QUADS, v, {colors={1,1,1}, tex=d.tex,
                             texcoords = dvec2{0,0; 0,1; 1,1; 1,0}})
 
+    local rect = ivec2{10,10; w/2,h/3}  -- CODEDUP; need "slices" or similar
+    if (ptinrect(d.mx, d.my, rect)) then
+        glow.draw(GL.LINE_LOOP, v, {colors={1,1,0.4}})
+    end
+
     local ti = d.tileinf
     glow.text({20, h/3+20}, 14, format("Tile %d: %d x %d", ti.num, ti.w, ti.h))
 
@@ -76,26 +88,16 @@ local function display()
     glut.glutSwapBuffers()
 end
 
-local function motion_common(x, y)
+local function motion_both(isdown, x, y)
     local d = getdata()
     d.mx, d.my = x, y
+    d.mdown = isdown
 
     glut.glutPostRedisplay()
 end
 
-local function passivemotion(x, y)
-    getdata().mdown = false
-    motion_common(x, y)
-end
-
-local function motion(x, y)
-    getdata().mdown = true
-    motion_common(x, y)
-end
-
-
 local callbacks = {
-    Display=display, PassiveMotion=passivemotion, Motion=motion,
+    Display=display, MotionBoth=motion_both,
     Reshape=reshape,
 }
 

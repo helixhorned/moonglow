@@ -99,9 +99,23 @@ function glow.window(opts, callbacks)
     gl.glHint(GL.LINE_SMOOTH_HINT, GL.NICEST)
 
     for cbname, cbfunc in pairs(callbacks) do
-        -- Uncomment to make e.g. both 'display' and 'Display' valid:
---        local cbname2 = cbname:sub(1,1):upper() .. cbname:sub(2)
-        glut["glut"..cbname.."Func"](cbfunc)
+        if (cbname == "MotionBoth") then
+            -- A single callback for passive and active motion.
+            local function onPassiveMotion(x, y)
+                return cbfunc(false, x, y)
+            end
+
+            local function onActiveMotion(x, y)
+                return cbfunc(true, x, y)
+            end
+
+            glut.glutPassiveMotionFunc(onPassiveMotion)
+            glut.glutMotionFunc(onActiveMotion)
+        else
+            -- Uncomment to make e.g. both 'display' and 'Display' valid:
+--            local cbname2 = cbname:sub(1,1):upper() .. cbname:sub(2)
+            glut["glut"..cbname.."Func"](cbfunc)
+        end
     end
 
     return winid
