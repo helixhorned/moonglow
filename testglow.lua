@@ -11,6 +11,8 @@ local math = require("math")
 local cos, sin = math.cos, math.sin
 local max = math.max
 
+local unpack = unpack
+
 
 local function ivec2(tab)
     local numverts = #tab/2
@@ -45,7 +47,7 @@ local function display()
         max(0.8, (0.0003*ms)%1),
     } or { 0.9, 0.9, 0.9 }
 
-    glow.clear(color)
+    glow.clear(unpack(color))
 
     local w, h = d.w, d.h
     local v = ivec2{1,1; 1,h; w,h; w,1} - 1
@@ -65,7 +67,7 @@ local function display()
 
     local v = ivec2{10,10; 10,h/2; w/2,h/2; w/2,10}
 --    glow.draw(GL.LINE_LOOP, v, {line=true, colors={0.6, 0.2, 0.2}})
-    glow.draw(GL.LINE_LOOP, v, {colors={1,1,1}, tex=d.tex})
+    glow.draw(GL.LINE_LOOP, v, {colors={1,1,1}})
 
     -- draw mouse reticle
     local mx, my = d.mx, d.my
