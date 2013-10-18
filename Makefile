@@ -1,11 +1,27 @@
 
-THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+OS := $(shell uname -s)
+MINGW := $(findstring MINGW,$(OS))
+#THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+
+########## PATHS ##########
+
+LJCLANG_DIR := ../ljclang
+
+ifeq ($(OS),Linux)
+    GL_H := /usr/include/GL/gl.h
+    FREEGLUT_H := /usr/local/include/GL/freeglut.h
+else
+ ifeq ($(MINGW),MINGW)
+    GL_H := /c/MinGW/include/GL/gl.h
+    FREEGLUT_H := /f/g/mod/freeglut/freeglut/include/GL/freeglut.h
+ else
+    $(error unknown platform)
+ endif
+endif
+
 luajit := luajit
-
-GL_H := /usr/include/GL/gl.h
-FREEGLUT_H := /usr/local/include/GL/freeglut.h
-
-LJCLANG_DIR := $(THIS_DIR)/../ljclang
+#LJCLANG_DIR := $(THIS_DIR)/../ljclang
 extractdecls := LD_LIBRARY_PATH=$(LJCLANG_DIR) LUA_PATH=";;$(LJCLANG_DIR)/?.lua" $(luajit) $(LJCLANG_DIR)/extractdecls.lua -Q
 
 so := .so
@@ -14,6 +30,9 @@ CFLAGS :=
 
 DECLS_LUA = gldecls.lua
 CONSTS_LUA = glconsts.lua
+
+
+########## RULES ##########
 
 .PHONY: bootstrap all
 

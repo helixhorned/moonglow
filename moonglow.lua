@@ -3,8 +3,12 @@
 local ffi = require("ffi")
 local jit = require("jit")
 
-local gl = ffi.load("GL")
-local glut = ffi.load("glut")
+local glLibName = (ffi.os=="Windows") and "opengl32" or "GL"
+-- we always need FreeGLUT, but on Linux, it installs as 'libglut.so':
+local glutLibName = (ffi.os=="Windows") and "freeglutd" or "glut"
+
+local gl =  ffi.load(glLibName)
+local glut = ffi.load(glutLibName)
 
 local glconsts = require("glconsts")
 local GL = glconsts.GL
@@ -29,7 +33,8 @@ local FONT_ROMAN
 local FONT_MONO
 
 if (jit.os == "Windows") then
-    error("NYI")
+    FONT_ROMAN = ffi.cast("void *", 0)
+    FONT_MONO = ffi.cast("void *", 1)
 else
 --[[
     In freeglut.h, we have:
@@ -402,8 +407,11 @@ function glow.text(pos, height, str, xyalign, opts)
 
     gl.glEnable(GL.LINE_SMOOTH)
     gl.glEnable(GL.BLEND)
-    gl.glBlendEquation(GL.FUNC_ADD)
-
+--[[
+    if (ffi.os ~= "Windows") then  -- XXX
+        gl.glBlendEquation(GL.FUNC_ADD)
+    end
+]]
     gl.glTranslated(pos[1], pos[2], #pos==2 and 0.0 or pos[3])
 
     gl.glScaled(height/FONTHEIGHT, height/FONTHEIGHT, height/FONTHEIGHT)
