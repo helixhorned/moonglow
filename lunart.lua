@@ -74,21 +74,39 @@ local function drawTile(aw, ltile, rect, mx, my)
     local v = rect.v
     -- Rect points:
     local rpts = ivec2{v[0],v[1]; v[2],v[1]; v[2],v[3]; v[0],v[3]}
+    -- Rect width and height:
+    local rw, rh = v[2]-v[0], v[3]-v[1]
 
     local tex = aw:getTex(ltile)
 
-    if (tex == nil) then
-        glow.draw(GL.LINE_LOOP, rpts, {colors={0.1, 0.1, 0.1}})
-    else
-        glow.draw(GL.QUADS, rpts, {colors={1,1,1}, tex=tex,
+    if (tex ~= nil) then
+        local pw, ph = aw.artf:dims(ltile)
+
+        local tpts
+        if (pw > ph) then
+            local f = 1-ph/pw
+            tpts = rpts + ivec2{0,0; 0,0; 0,-f*rh; 0,-f*rh}
+        elseif (pw < ph) then
+            local f = 1-pw/ph
+            tpts = rpts + ivec2{0,0; -f*rw,0; -f*rw,0; 0,0}
+        else
+            tpts = rpts
+        end
+
+        glow.draw(GL.QUADS, tpts, {colors={1,1,1}, tex=tex,
                                    texcoords = dvec2{0,0; 0,1; 1,1; 1,0}})
+    end
+
+    glow.draw(GL.LINE_LOOP, rpts, {colors={0.1, 0.1, 0.1}})
+
+    if (tex ~= nil) then
         if (ptinrect(mx, my, rect)) then
             glow.draw(GL.LINE_LOOP, rpts, {colors={1,1,0.4}})
-        end        
+        end
     end
-    
 end
 
+-- Compare two ArtFileWrapper objects.
 local function compare_aw(aw1, aw2)
     local af1, af2 = aw1.artf, aw2.artf
 
@@ -115,14 +133,14 @@ local function display_cb()
     table.sort(awraps, compare_aw)
 
     local w, h = d.w, d.h
-    local rect = ivec2{0,0; 80,80} + 10
+    local rect = ivec2{0,0; 80,80} + 16
 
     for awi = 1,#awraps do
         local aw = awraps[awi]
 
         drawTile(aw, 0, rect, d.mx, d.my)
 
-        rect = rect + ivec2{0,100, 0,100}
+        rect:addBroadcast(ivec2{0,100})
         if (rect.v[3] > h-20) then
             break
         end
