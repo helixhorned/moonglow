@@ -12,6 +12,8 @@ local ga_uint8 = garray.newType("uint8_t")
 local ga_uint32 = garray.newType("uint32_t")
 
 local assert = assert
+local pairs = pairs
+local setmetatable = setmetatable
 
 local math = require("math")
 local cos, sin = math.cos, math.sin
@@ -21,6 +23,7 @@ local bit = require("bit")
 local ffi = require("ffi")
 local io = require("io")
 local os = require("os")
+local table = require("table")
 
 local string = require("string")
 local format = string.format
@@ -41,16 +44,17 @@ local function dvec2(tab)
 end
 
 
--- Application data, per-window. [windowid] = { ... }
+-- Application data, per-window. [windowid] = <AppData object>
 local g_data = {}
 
--- Get current window.
+-- Get AppData of current window.
 local function getdata()
     return assert(g_data[glut.glutGetWindow()])
 end
 
 
-local function reshape(w, h)
+--== window reshape callback ==--
+local function reshape_cb(w, h)
     local d = getdata()
 
     glow.setup2d(w, h)
@@ -58,6 +62,7 @@ local function reshape(w, h)
     d.h = h
 end
 
+-- Is point (x, y) in the rect <r> (2x2 garray)?
 local function ptinrect(x, y, r)
     local nr, nc = r:dims()
     return nr==2 and nc==2 and
@@ -65,49 +70,93 @@ local function ptinrect(x, y, r)
         x <= r.v[2] and y <= r.v[3]
 end
 
-local function display()
+local function drawTile(aw, ltile, rect, mx, my)
+    local v = rect.v
+    -- Rect points:
+    local rpts = ivec2{v[0],v[1]; v[2],v[1]; v[2],v[3]; v[0],v[3]}
+
+    local tex = aw:getTex(ltile)
+
+    if (tex == nil) then
+        glow.draw(GL.LINE_LOOP, rpts, {colors={0.1, 0.1, 0.1}})
+    else
+        glow.draw(GL.QUADS, rpts, {colors={1,1,1}, tex=tex,
+                                   texcoords = dvec2{0,0; 0,1; 1,1; 1,0}})
+        if (ptinrect(mx, my, rect)) then
+            glow.draw(GL.LINE_LOOP, rpts, {colors={1,1,0.4}})
+        end        
+    end
+    
+end
+
+local function compare_aw(aw1, aw2)
+    local af1, af2 = aw1.artf, aw2.artf
+
+    if (af1.tbeg < af2.tbeg) then
+        return true
+    end
+
+    if (type(af1.filename)=="string" and type(af2.filename)=="string"
+            and af1.filename < af2.filename) then
+        return true
+    end
+end
+
+--== display callback ==--
+local function display_cb()
     local d = getdata()
 
     glow.clear(0.9)
 
-    local w, h = d.w, d.h
-    local v = ivec2{10,10; w/2,10; w/2,h/3; 10,h/3}
-    glow.draw(GL.QUADS, v, {colors={1,1,1}, tex=d.tex,
-                            texcoords = dvec2{0,0; 0,1; 1,1; 1,0}})
+    local awraps = {}
+    for _,aw in pairs(d.artwraps) do
+        awraps[#awraps+1] = aw
+    end
+    table.sort(awraps, compare_aw)
 
-    local rect = ivec2{10,10; w/2,h/3}  -- CODEDUP; need "slices" or similar
-    if (ptinrect(d.mx, d.my, rect)) then
-        glow.draw(GL.LINE_LOOP, v, {colors={1,1,0.4}})
+    local w, h = d.w, d.h
+    local rect = ivec2{0,0; 80,80} + 10
+
+    for awi = 1,#awraps do
+        local aw = awraps[awi]
+
+        drawTile(aw, 0, rect, d.mx, d.my)
+
+        rect = rect + ivec2{0,100, 0,100}
+        if (rect.v[3] > h-20) then
+            break
+        end
     end
 
-    local ti = d.tileinf
-    glow.text({20, h/3+20}, 14, format("Tile %d: %d x %d", ti.num, ti.w, ti.h))
+--    local ti = d.tileinf
+--    glow.text({20, h/3+20}, 14, format("Tile %d: %d x %d", ti.num, ti.w, ti.h))
 
     assert(gl.glGetError() == GL.NO_ERROR)
 
     glut.glutSwapBuffers()
 end
 
-local function motion_both(isdown, x, y)
-    local d = getdata()
-    d.mx, d.my = x, y
-    d.mdown = isdown
-
+--== mouse motion callback ==--
+local function motion_both_cb(isdown, x, y)
+    getdata():setMouse(x, y, isdown)
     glut.glutPostRedisplay()
 end
 
-local callbacks = {
-    Display=display, MotionBoth=motion_both,
-    Reshape=reshape,
+local g_callbacks = {
+    Display=display_cb, MotionBoth=motion_both_cb,
+    Reshape=reshape_cb,
 }
 
 
+-- Terminate the LuaJIT process with a formatted error message.
 local function doexit(fmt, ...)
     local msg = string.format(fmt, ...)
     io.stderr:write(msg)
     os.exit(1)
 end
 
+-- <basepal>: uint8_t [768] cdata
+-- Returns: uint32_t [768] cdata (RGBA)
 local function expand_basepal(basepal)
     local bpu = ga_uint32(768)
     for i=0,768-1 do
@@ -120,55 +169,126 @@ local function expand_basepal(basepal)
     return bpu
 end
 
--- <d>: table with some initialized fields
-local function initAppData(d)
-    local palfn, artfn, ltile = arg[1], arg[2], tonumber(arg[3])
-    if (palfn==nil or artfn==nil or ltile==nil) then
-        doexit("Usage: %s /path/to/PALETTE.DAT /path/to/TILES?.ART ltilenum\n", arg[0])
-    end
-
+-- <palfn>: file name of PALETTE.DAT
+local function getBasepal(palfn)
     local palette, errmsg = B.read_basepal(palfn)
     if (palette == nil) then
         doexit("Failed reading %s: %s", palfn, errmsg)
     end
-    palette = expand_basepal(palette)
+    return expand_basepal(palette)
+end
 
-    local artf, errmsg = B.artfile(artfn)
-    if (artf == nil) then
-        doexit("Failed reading %s: %s", artfn, errmsg)
-    end
-
-    local img = artf:getpic(ltile)
-    local pw, ph = artf:dims(ltile)
-
-    d.tileinf = { num=ltile, w=pw, h=ph }
-
-    local teximg = ga_uint32(pw,ph)
+-- <img>: uint8_t [<pw>*<ph>] cdata
+-- Returns: uint32_t [<pw>*<ph>] cdata
+local function createTexture(img, pw, ph, palette)
+    local teximg = ga_uint32(pw, ph)
     for i=0,pw*ph-1 do
         teximg.v[i] = palette.v[img[i]]
     end
+    return teximg
+end
 
-    d.tex = glow.texture(teximg, {filter=GL.NEAREST})
+--== ArtFileWrapper ==--
 
-    return d
+local ArtFileWrapper_mt = {
+    __index = {
+        -- Upload GL texture for local tile number <ltile> and get GL texture name
+        getTex = function(self, ltile)
+            if (self.tex[ltile]) then
+                return self.tex[ltile]
+            end
+
+            local af = self.artf
+            local img = af:getpic(ltile)
+            if (img == nil) then
+                return nil
+            end
+
+            local pw, ph = af:dims(ltile)
+            local teximg = createTexture(img, pw, ph, self.basepal)
+            self.tex[ltile] = glow.texture(teximg, {filter=GL.NEAREST})
+
+            return self.tex[ltile]
+        end,
+    },
+
+    __metatable = true,
+}
+
+-- A wrapper around the build.artfile class, containing app-time state.
+-- <artfn>: The file name of the ART file to load.
+-- <appdata>: The application data (AppData) object
+local function ArtFileWrapper(artfn, appdata)
+    local af, errmsg = B.artfile(artfn)
+    if (af == nil) then
+        doexit("Failed loading %s: %s", artfn, errmsg)
+    end
+
+    local aw = {
+        -- The artfile object
+        artf = af;
+
+        -- Base palette, needed for texture uploading:
+        basepal = appdata.basepal;
+
+        -- [localtilenum] = GL texture name
+        tex = {};
+    }
+
+    return setmetatable(aw, ArtFileWrapper_mt)
 end
 
 
-local function createWindow()
-    local win = glut.glutGetWindow()
-    local pos = (win==0) and {500, 400} or
-        {
-            glut.glutGet(GLUT.WINDOW_X) + 20,
-            glut.glutGet(GLUT.WINDOW_Y) + 20,
-        }
+--== AppData ==--
 
-    local wi = glow.window({name="LunART", pos=pos, extent={640, 480}}, callbacks)
+local AppData_mt = {
+    __index = {
+        setMouse = function(self, mx, my, mdown)
+            self.mx, self.my, self.mdown = mx, my, mdown
+        end,
+    },
+
+    __metatable = true,
+}
+
+-- Return a table with LunART application data.
+-- We probably won't ever need more than one AppData per one LuaJIT process,
+-- but I find it somewhat cleaner this way.
+local function AppData()
+    local d = {
+        -- Window width and height
+        w=0, h=0;
+
+        -- Mouse pointer last position
+        mx=0, my=0;
+
+        -- Mouse button pressed?
+        mdown = false;
+
+        -- [filename] = <ArtFileWrapper object>
+        artwraps = {};
+
+        -- The base palette (uint8_t [768] cdata)
+        basepal = getBasepal("PALETTE.DAT");
+    }
+
+    -- Open ART files given on the command line.
+    for i=1,#arg do
+        d.artwraps[arg[i]] = ArtFileWrapper(arg[i], d)
+    end
+
+    return setmetatable(d, AppData_mt)
+end
+
+
+local function createAppWindow()
+    local wi = glow.window({name="LunART", pos={500, 400}, extent={640, 480}}, g_callbacks)
     glut.glutSetCursor(GLUT.CURSOR_CROSSHAIR)
 
-    -- App data for this window. Don't init width/height yet.
-    g_data[wi] = initAppData{ w=0, h=0, mx=0, my=0, mdown=false, tex=0 }
+    -- App data for this window.
+    g_data[wi] = AppData()
 end
 
 
-createWindow()
+createAppWindow()
 glow.mainloop()
