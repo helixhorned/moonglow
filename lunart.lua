@@ -127,17 +127,22 @@ local function compare_aw(aw1, aw2)
     end
 end
 
+-- Tile rect: "carriage return"
+local function tilerect_cr(rect, startx)
+    local v = rect.v
+    v[0], v[2] = startx, startx+(v[2]-v[0])
+end
+
+-- Tile rect: "new line"
+local function tilerect_lf(rect, yadd)
+    rect:addBroadcast(ivec2{0,yadd})
+end
+
 --== display callback ==--
 local function display_cb()
     local d = getdata()
 
     glow.clear(0.9)
-
-    local awraps = {}
-    for _,aw in pairs(d.artwraps) do
-        awraps[#awraps+1] = aw
-    end
-    table.sort(awraps, compare_aw)
 
     local w, h = d.w, d.h
     local rw = d.rectw  -- square width/height
@@ -146,27 +151,31 @@ local function display_cb()
     local startx = 16  -- currently also starty
     local rect = ivec2{0,0; rw,rw} + startx
 
-    for awi = 1,#awraps do
-        local aw = awraps[awi]
+    for awi = d.startawi,#d.artwsort do
+        local aw = d.artwsort[awi]
 
-        for lt = 0,aw.artf.numtiles-1 do
+        local startltile = (awi==d.startawi) and d.startltile or 0
+        local endltile = aw.artf.numtiles-1
+        -- Assert that the lower loop iterates at least once.
+        assert(startltile <= endltile)
+
+        -- Draw tiles of one ArtFileWrapper collection (the one given by index awi)
+        for lt = startltile,endltile do
             drawTile(aw, lt, rect, d.mx, d.my)
 
             rect:addBroadcast(ivec2{rw+dx,0})
 
-            if (rect.v[2] > w-startx) then
-                local v = rect.v
-                v[0], v[2] = startx, startx+(v[2]-v[0])
-                break
+            if (rect.v[2] > w-startx or lt==endltile) then
+                tilerect_cr(rect, startx)
+                tilerect_lf(rect, rw+dy)
+
+                if (rect.v[3] > h-40) then
+                    goto end_draw_tiles
+                end
             end
         end
-
-        rect:addBroadcast(ivec2{0,rw+dy})
-
-        if (rect.v[3] > h-40) then
-            break
-        end
     end
+::end_draw_tiles::
 
 --    local ti = d.tileinf
 --    glow.text({20, h/3+20}, 14, format("Tile %d: %d x %d", ti.num, ti.w, ti.h))
@@ -329,6 +338,14 @@ local function AppData()
         -- [filename] = <ArtFileWrapper object>
         artwraps = {};
 
+        -- Sorted ArtFileWrapper references
+        -- [index] = <ArtFileWrapper object>
+        artwsort = {};
+
+        -- Starting ArtFileWrapper index and local tile number for the upper
+        -- left corner
+        startawi = 1, startltile = 0;
+
         -- The base palette (uint8_t [768] cdata)
         basepal = getBasepal("PALETTE.DAT");
     }
@@ -337,6 +354,12 @@ local function AppData()
     for i=1,#arg do
         d.artwraps[arg[i]] = ArtFileWrapper(arg[i], d)
     end
+
+    -- Sort the ArtFileWrapper objects.
+    for _,aw in pairs(d.artwraps) do
+        d.artwsort[#d.artwsort+1] = aw
+    end
+    table.sort(d.artwsort, compare_aw)
 
     return setmetatable(d, AppData_mt)
 end
