@@ -52,6 +52,12 @@ local function getdata()
     return assert(g_data[glut.glutGetWindow()])
 end
 
+local function clamp(x, min, max)
+    return
+        x < min and min or
+        x > max and max or x
+end
+
 
 --== window reshape callback ==--
 local function reshape_cb(w, h)
@@ -97,7 +103,8 @@ local function drawTile(aw, ltile, rect, mx, my)
                                    texcoords = dvec2{0,0; 0,1; 1,1; 1,0}})
     end
 
-    glow.draw(GL.LINE_LOOP, rpts, {colors={0.1, 0.1, 0.1}})
+    local c = (tex and 0.2 or 0.7)
+    glow.draw(GL.LINE_LOOP, rpts, {colors={c, c, c}})
 
     if (tex ~= nil) then
         if (ptinrect(mx, my, rect)) then
@@ -133,15 +140,30 @@ local function display_cb()
     table.sort(awraps, compare_aw)
 
     local w, h = d.w, d.h
-    local rect = ivec2{0,0; 80,80} + 16
+    local rw = d.rectw  -- square width/height
+    local dx = clamp(0.2*rw, 2, 20)
+    local dy = dx
+    local startx = 16  -- currently also starty
+    local rect = ivec2{0,0; rw,rw} + startx
 
     for awi = 1,#awraps do
         local aw = awraps[awi]
 
-        drawTile(aw, 0, rect, d.mx, d.my)
+        for lt = 0,aw.artf.numtiles-1 do
+            drawTile(aw, lt, rect, d.mx, d.my)
 
-        rect:addBroadcast(ivec2{0,100})
-        if (rect.v[3] > h-20) then
+            rect:addBroadcast(ivec2{rw+dx,0})
+
+            if (rect.v[2] > w-startx) then
+                local v = rect.v
+                v[0], v[2] = startx, startx+(v[2]-v[0])
+                break
+            end
+        end
+
+        rect:addBroadcast(ivec2{0,rw+dy})
+
+        if (rect.v[3] > h-40) then
             break
         end
     end
@@ -160,9 +182,27 @@ local function motion_both_cb(isdown, x, y)
     glut.glutPostRedisplay()
 end
 
+--== key press callback ==--
+local function key_both_cb(key, x, y)
+    local d = getdata()
+    local up = false  -- need update?
+
+    local havezoom = (key == '+' or key == '-')
+
+    if (havezoom) then
+        local dzoom = (key == '+') and 10 or -10
+        d.rectw = clamp(d.rectw + dzoom, 10, 400)
+        up = true
+    end
+
+    if (up) then
+        glow.redisplay()
+    end
+end
+
 local g_callbacks = {
     Display=display_cb, MotionBoth=motion_both_cb,
-    Reshape=reshape_cb,
+    Reshape=reshape_cb, KeyBoth=key_both_cb,
 }
 
 
@@ -224,7 +264,7 @@ local ArtFileWrapper_mt = {
 
             local pw, ph = af:dims(ltile)
             local teximg = createTexture(img, pw, ph, self.basepal)
-            self.tex[ltile] = glow.texture(teximg, {filter=GL.NEAREST})
+            self.tex[ltile] = glow.texture(teximg, {filters={min=GL.LINEAR, mag=GL.NEAREST}})
 
             return self.tex[ltile]
         end,
@@ -282,6 +322,9 @@ local function AppData()
 
         -- Mouse button pressed?
         mdown = false;
+
+        -- The width (and height) of a single tile square.
+        rectw = 80;
 
         -- [filename] = <ArtFileWrapper object>
         artwraps = {};
