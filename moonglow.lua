@@ -18,6 +18,7 @@ local garray = require("garray")
 
 
 local bit = require("bit")
+local string = require("string")
 
 local assert = assert
 local error = error
@@ -116,6 +117,19 @@ function glow.window(opts, callbacks)
 
             glut.glutPassiveMotionFunc(onPassiveMotion)
             glut.glutMotionFunc(onActiveMotion)
+        elseif (cbname == "KeyBoth") then
+            -- A single callback for ASCII and special keys.
+            local function onKeyboard(asc, x, y)
+                -- Key will be a string of length one!
+                return cbfunc(string.char(asc), x, y)
+            end
+
+            local function onSpecial(key, x, y)
+                return cbfunc(key, x, y)
+            end
+
+            glut.glutKeyboardFunc(onKeyboard)
+            glut.glutSpecialFunc(onSpecial)
         else
             -- Uncomment to make e.g. both 'display' and 'Display' valid:
 --            local cbname2 = cbname:sub(1,1):upper() .. cbname:sub(2)
@@ -140,6 +154,12 @@ function glow.mainloop()
             error(errmsg)
         end
     end
+end
+
+-- glow.redisplay()
+-- Issues a redisplay request.
+function glow.redisplay()
+    glut.glutPostRedisplay()
 end
 
 -- glow.clear(r [, g [, b]])
@@ -301,12 +321,15 @@ function glow.texture(pic, opts)
     local opts = opts or {}
 
     local wrap = opts.wrap or GL.CLAMP_TO_EDGE
-    local filter = opts.filter or GL.LINEAR
+    local filters =
+        opts.filter and { opts.filter, opts.filter } or
+        opts.filters and { opts.filters.min, opts.filters.mag } or
+        { GL.LINEAR, GL.LINEAR }
 
     gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, wrap)
     gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, wrap)
-    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, filter)
-    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, filter)
+    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, filters[1])
+    gl.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, filters[2])
 
     local glformat = (ts=="uint32_t") and GL.RGBA or GL.LUMINANCE
     gl.glPixelStorei(GL.UNPACK_ALIGNMENT, glformat==GL.RGB and 1 or ffi.alignof(ts))
