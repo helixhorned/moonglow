@@ -45,7 +45,7 @@ local garray_mt = {
             end
             return ar
         else
-            assert(ffi.typeof(other) == ffi.typeof(self), "garray '+': RHS must be number or same type")
+            assert(self:issamesize(other), "garray '+': RHS must be number or same type")
             local ar = new_garray(self)
             for i=0,self:numel()-1 do
                 ar.v[i] = self.v[i] + other.v[i]
@@ -68,8 +68,17 @@ local garray_mt = {
         dims = function(self)
             return self.size[0], self.size[1]
         end,
---[[
-        samesize = function(self, other)
+
+        addBroadcast = function(self, other)
+            assert(garray.is(other), "RHS must be a garray")
+            local nr = self.size[0]
+            assert(nr == other.size[0], "size[0] must be identical")
+            for i=0,self:numel()-1 do
+                self.v[i] = self.v[i] + other.v[i % nr]
+            end
+        end,
+
+        issamesize = function(self, other)
             if (not garray.is(other, self.ndims)) then
                 return false
             end
@@ -77,7 +86,7 @@ local garray_mt = {
             return self.size[0]==other.size[0]
                 and self.size[1]==other.size[1]
         end,
---]]
+
         basetypestr = function(self)
             local typnum = tonumber(ffi.typeof(self))
             return garray_basetypestr[typnum]
