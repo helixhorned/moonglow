@@ -14,6 +14,7 @@ local ga_uint32 = garray.newType("uint32_t")
 local assert = assert
 local pairs = pairs
 local setmetatable = setmetatable
+local type = type
 
 local math = require("math")
 local cos, sin = math.cos, math.sin
@@ -66,6 +67,8 @@ local function reshape_cb(w, h)
     glow.setup2d(w, h)
     d.w = w
     d.h = h
+
+    d.startltile = 0
 end
 
 -- Is point (x, y) in the rect <r> (2x2 garray)?
@@ -138,6 +141,31 @@ local function tilerect_lf(rect, yadd)
     rect:addBroadcast(ivec2{0,yadd})
 end
 
+-- Returns:
+--  * number of tiles to draw per line
+--  * left starting coordinate
+--  * tile rect width
+--  * x step
+local function getTileLineDims(d)
+    local startx = 16  -- currently also starty
+    local rw = d.rectw  -- square width/height
+    local dx = clamp(0.2*rw, 2, 20)
+
+    local x = rw + startx
+    local tilesperline = 0  -- one is always drawn
+
+    while (true) do
+        tilesperline = tilesperline+1
+
+        x = x + (rw+dx)
+        if (x > d.w-startx) then
+            break
+        end
+    end
+
+    return tilesperline, startx, rw, dx
+end
+
 --== display callback ==--
 local function display_cb()
     local d = getdata()
@@ -145,27 +173,29 @@ local function display_cb()
     glow.clear(0.9)
 
     local w, h = d.w, d.h
-    local rw = d.rectw  -- square width/height
-    local dx = clamp(0.2*rw, 2, 20)
+    local tilesperline, startx, rw, dx = getTileLineDims(d)
     local dy = dx
-    local startx = 16  -- currently also starty
+
     local rect = ivec2{0,0; rw,rw} + startx
 
     for awi = d.startawi,#d.artwsort do
         local aw = d.artwsort[awi]
 
         local startltile = (awi==d.startawi) and d.startltile or 0
-        local endltile = aw.artf.numtiles-1
+        local endltile = aw:getNumTiles()-1
         -- Assert that the lower loop iterates at least once.
         assert(startltile <= endltile)
 
+        local tilesdrawn = 0
         -- Draw tiles of one ArtFileWrapper collection (the one given by index awi)
         for lt = startltile,endltile do
             drawTile(aw, lt, rect, d.mx, d.my)
+            tilesdrawn = tilesdrawn + 1
 
             rect:addBroadcast(ivec2{rw+dx,0})
 
-            if (rect.v[2] > w-startx or lt==endltile) then
+            if (tilesdrawn==tilesperline or lt==endltile) then
+                tilesdrawn = 0
                 tilerect_cr(rect, startx)
                 tilerect_lf(rect, rw+dy)
 
@@ -194,17 +224,49 @@ end
 --== key press callback ==--
 local function key_both_cb(key, x, y)
     local d = getdata()
-    local up = false  -- need update?
+    local needup = false  -- need update?
 
-    local havezoom = (key == '+' or key == '-')
-
-    if (havezoom) then
+    if (key == '+' or key == '-') then
         local dzoom = (key == '+') and 10 or -10
         d.rectw = clamp(d.rectw + dzoom, 10, 400)
-        up = true
+        needup = true
     end
 
-    if (up) then
+    if (key==GLUT.KEY_UP or key==GLUT.KEY_DOWN) then
+        local dtile = (key==GLUT.KEY_UP) and -1 or 1
+        local tilesperline = getTileLineDims(d)
+        local newsltile = d.startltile + tilesperline*dtile
+        needup = true
+
+        if (dtile > 0) then
+            if (newsltile > d.artwsort[d.startawi]:getNumTiles()) then
+                if (d.startawi < #d.artwsort) then
+                    d.startawi = d.startawi+1
+                    d.startltile = 0
+                end
+            else
+                d.startltile = newsltile
+            end
+        end
+
+        if (dtile < 0) then
+            if (newsltile < 0) then
+                if (d.startawi > 1) then
+                    d.startawi = d.startawi-1
+                    local numt = d.artwsort[d.startawi]:getNumTiles()
+                    if (numt == tilesperline) then
+                        d.startltile = 0
+                    else
+                        d.startltile = (math.floor(numt/tilesperline)*tilesperline)
+                    end
+                end
+            else
+                d.startltile = newsltile
+            end
+        end
+    end
+
+    if (needup) then
         glow.redisplay()
     end
 end
@@ -276,6 +338,10 @@ local ArtFileWrapper_mt = {
             self.tex[ltile] = glow.texture(teximg, {filters={min=GL.LINEAR, mag=GL.NEAREST}})
 
             return self.tex[ltile]
+        end,
+
+        getNumTiles = function(self)
+            return self.artf.numtiles
         end,
     },
 
