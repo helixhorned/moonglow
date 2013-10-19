@@ -30,18 +30,32 @@ local garray = {}
 -- [<garray type cdata number>] = <string of basetype>
 local garray_basetypestr = {}
 
+-- Create new garray of the same type
+local function new_garray(ga)
+    local typ = ffi.typeof(ga)
+    return typ(ga:numel(), ga.ndims, { ga.size[0], ga.size[1] })
+end
+
 local garray_mt = {
     __add = function(self, other)
-        assert(type(other) == "number", "RHS other than number NYI")
-        local typ = ffi.typeof(self)
-        local ar = typ(self:numel(), self.ndims, { self.size[0], self.size[1] })
-        for i=0,self:numel()-1 do
-            ar.v[i] = self.v[i] + other
+        if (type(other) == "number") then
+            local ar = new_garray(self)
+            for i=0,self:numel()-1 do
+                ar.v[i] = self.v[i] + other
+            end
+            return ar
+        else
+            assert(ffi.typeof(other) == ffi.typeof(self), "garray '+': RHS must be number or same type")
+            local ar = new_garray(self)
+            for i=0,self:numel()-1 do
+                ar.v[i] = self.v[i] + other.v[i]
+            end
+            return ar
         end
-        return ar
     end,
 
     __sub = function(self, other)
+        assert(type(other)=="number", "garray '-': RHS other than number NYI")
         return self + -other
     end,
 
