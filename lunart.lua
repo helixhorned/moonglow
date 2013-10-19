@@ -221,6 +221,38 @@ local function motion_both_cb(isdown, x, y)
     glut.glutPostRedisplay()
 end
 
+local function scrollTiles(d, direction)
+    local tilesperline = getTileLineDims(d)
+    local newsltile = d.startltile + tilesperline*direction
+
+    if (direction > 0) then
+        if (newsltile >= d.artwsort[d.startawi]:getNumTiles()) then
+            if (d.startawi < #d.artwsort) then
+                d.startawi = d.startawi+1
+                d.startltile = 0
+            end
+        else
+            d.startltile = newsltile
+        end
+    end
+
+    if (direction < 0) then
+        if (newsltile < 0) then
+            if (d.startawi > 1) then
+                d.startawi = d.startawi-1
+                local numt = d.artwsort[d.startawi]:getNumTiles()
+                if (numt == tilesperline) then
+                    d.startltile = 0
+                else
+                    d.startltile = (math.floor(numt/tilesperline)*tilesperline)
+                end
+            end
+        else
+            d.startltile = newsltile
+        end
+    end
+end
+
 --== key press callback ==--
 local function key_both_cb(key, x, y)
     local d = getdata()
@@ -233,37 +265,33 @@ local function key_both_cb(key, x, y)
     end
 
     if (key==GLUT.KEY_UP or key==GLUT.KEY_DOWN) then
-        local dtile = (key==GLUT.KEY_UP) and -1 or 1
-        local tilesperline = getTileLineDims(d)
-        local newsltile = d.startltile + tilesperline*dtile
+        scrollTiles(d, (key==GLUT.KEY_UP) and -1 or 1)
+        needup = true
+    end
+
+    if (key==GLUT.KEY_PAGE_UP or key==GLUT.KEY_PAGE_DOWN) then
+        local _, _, rw, dx = getTileLineDims(d)
+        -- Approximately half the number of lines:
+        local linesToScroll = math.floor((d.h/(rw+dx))/2)
+        linesToScroll = clamp(linesToScroll, 1, 20)
         needup = true
 
-        if (dtile > 0) then
-            if (newsltile > d.artwsort[d.startawi]:getNumTiles()) then
-                if (d.startawi < #d.artwsort) then
-                    d.startawi = d.startawi+1
-                    d.startltile = 0
-                end
-            else
-                d.startltile = newsltile
-            end
+        for i=1,linesToScroll do
+            scrollTiles(d, (key==GLUT.KEY_PAGE_UP) and -1 or 1)
         end
+    end
 
-        if (dtile < 0) then
-            if (newsltile < 0) then
-                if (d.startawi > 1) then
-                    d.startawi = d.startawi-1
-                    local numt = d.artwsort[d.startawi]:getNumTiles()
-                    if (numt == tilesperline) then
-                        d.startltile = 0
-                    else
-                        d.startltile = (math.floor(numt/tilesperline)*tilesperline)
-                    end
-                end
-            else
-                d.startltile = newsltile
-            end
-        end
+    if (key==GLUT.KEY_HOME) then
+        d.startawi = 1
+        d.startltile = 0
+        needup = true
+    elseif (key==GLUT.KEY_END) then
+        d.startawi = #d.artwsort
+        repeat
+            local ltile = d.startltile
+            scrollTiles(d, 1)
+        until (ltile == d.startltile)
+        needup = true
     end
 
     if (needup) then
