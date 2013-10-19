@@ -50,7 +50,7 @@ bootstrap:
 	@printf "\033[1mGenerated $(DECLS_LUA)\033[0m\n"
 	@true ## Extract GLUT defs
 	@echo 'local ffi=require"ffi"; local GLUT = ffi.new([[struct {' > $(CONSTS_LUA)
-	@$(extractdecls) -Q -w MacroDefinition -p '^GLUT_' -s '^GLUT_' -f "return f('static const int %s = %s%s;', k, (k:find('^KEY_') and not k:find('^KEY_REPEAT')) and '65536+' or '', v)" $(FREEGLUT_H) >> $(CONSTS_LUA)
+	@$(extractdecls) -Q -C -w MacroDefinition -p '^GLUT_' -s '^GLUT_' $(FREEGLUT_H) >> $(CONSTS_LUA)
 	@echo '}]])' >> $(CONSTS_LUA)
 	@echo 'local GL = ffi.new([[struct {' >> $(CONSTS_LUA)
 	@$(extractdecls) -Q -C -w MacroDefinition -p '^GL_' -s '^GL_' -x '^GL_[0-9]' -x '^GL_VERSION' -x '_ARB' -x '_EXT' -x '_NV' -x '_ATI' -x '_AMD' -x '_APPLE' -x '_MESA' -x '_SGI' -x '_SUN' -x '_IBM' -x '_INTEL' -x '_KHR' -x '_3DFX' -x '_GREMEDY' -x '_HP' -x '_INGR' -x '_OES' -x '_OML' -x '_PGI' -x '_REND' -x '_S3' -x '_WIN' $(GL_H) >> $(CONSTS_LUA)
