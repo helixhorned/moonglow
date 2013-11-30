@@ -183,7 +183,8 @@ local function display_cb()
 
         local startltile = (awi==d.startawi) and d.startltile or 0
         local endltile = aw:getNumTiles()-1
-        -- Assert that the lower loop iterates at least once.
+        -- Assert that the loop below iterates at least once.
+        -- XXX: may fail!
         assert(startltile <= endltile)
 
         local tilesdrawn = 0
@@ -308,7 +309,7 @@ local g_callbacks = {
 -- Terminate the LuaJIT process with a formatted error message.
 local function doexit(fmt, ...)
     local msg = string.format(fmt, ...)
-    io.stderr:write(msg)
+    io.stderr:write(msg, "\n")
     os.exit(1)
 end
 
