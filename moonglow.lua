@@ -3,7 +3,7 @@
 local ffi = require("ffi")
 local jit = require("jit")
 
-local glLibName = (ffi.os=="Windows") and "opengl32" or "GL"
+local glLibName = (ffi.os=="Windows") and "opengl32" or (ffi.os=="OSX" and "OpenGL.framework/OpenGL" or "GL")
 -- we always need FreeGLUT, but on Linux, it installs as 'libglut.so':
 local glutLibName = (ffi.os=="Windows") and "freeglutd" or "glut"
 
