@@ -259,7 +259,11 @@ function glow.draw(primitivetype, verts, opts)
 
     local col = opts.colors
     if (col) then
-        gl.glColor3d(col[1], col[2], col[3])
+        if (#col >= 4) then
+            gl.glColor4d(col[1], col[2], col[3], col[4])
+        else
+            gl.glColor3d(col[1], col[2], col[3])
+        end
     else
         gl.glColor3d(0.5, 0.5, 0.5)
     end
@@ -292,7 +296,17 @@ function glow.draw(primitivetype, verts, opts)
     gl.glEnableClientState(GL.VERTEX_ARRAY)
     gl.glVertexPointer(numdims, gltyp, 0, verts.v)
 
+    -- Convenience functionality: col is [r g b a]: enable blending
+    local enabledBlend = (col and (#col >= 4) and gl.glIsEnabled(GL.BLEND)==0)
+    if (enabledBlend) then
+        gl.glEnable(GL.BLEND)
+    end
+
     gl.glDrawArrays(primitivetype, 0, numverts)
+
+    if (enabledBlend) then
+        gl.glDisable(GL.BLEND)
+    end
 end
 
 -- gltexname = glow.texture(pic [, opts])
