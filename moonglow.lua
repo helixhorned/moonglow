@@ -121,11 +121,11 @@ function glow.window(opts, callbacks)
             -- A single callback for ASCII and special keys.
             local function onKeyboard(asc, x, y)
                 -- Key will be a string of length one!
-                return cbfunc(string.char(asc), x, y)
+                return cbfunc(string.char(asc), x, y, glut.glutGetModifiers())
             end
 
             local function onSpecial(key, x, y)
-                return cbfunc(key, x, y)
+                return cbfunc(key, x, y, glut.glutGetModifiers())
             end
 
             glut.glutKeyboardFunc(onKeyboard)
