@@ -392,17 +392,19 @@ local SPACE_REPL_CHAR = string.byte('t')
 function glow.text(pos, height, str, xyalign, opts)
     local have_xyalign = (xyalign ~= nil and xyalign[1] ~= nil)
 
+    if (opts == nil) then
+        opts = (not have_xyalign and xyalign) or {}
+    end
+
     if (not have_xyalign) then
         xyalign = { 0, 0 }  -- corresponds to passed {-1, -1}
     else
-        xyalign[1] = map_xyalign(xyalign[1])
-        xyalign[2] = map_xyalign(xyalign[2])
+        xyalign[1] = map_xyalign[xyalign[1]]
+        xyalign[2] = map_xyalign[xyalign[2]]
     end
     local xalign, yalign = xyalign[1], xyalign[2]
 
-    opts = opts or (not have_xyalign and xyalign) or {}
-
-    local color = { 0.2, 0.2, 0.2 } or opts.color
+    local color = opts.color or { 0.2, 0.2, 0.2 }
 
     -- xspacing default was determined to look good by trial/error:
     local xspacing = opts.xgap and opts.xgap*SPCWIDTH or FONTHEIGHT/10.0
