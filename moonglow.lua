@@ -258,13 +258,31 @@ function glow.draw(primitivetype, verts, opts)
     opts = opts or {}
 
     local col = opts.colors
+    local colistab = (type(col) == "table")
+
     if (col) then
-        if (#col >= 4) then
-            gl.glColor4d(col[1], col[2], col[3], col[4])
+        -- <opts>.colors provided
+        if (not colistab) then
+            -- <opts>.colors is a garray
+            assert(garray.is(col, 2), "<opts>.colors must be a garray matrix or a table")
+            assert(col:basetypestr() == "double",
+                   "<opts>.colors must have base type 'double'")  -- Other types: NYI
+            assert(col.size[0]==3 and col.size[1]==numverts,
+                   "<opts>.colors must have as many (R,G,B) triples as there are vertices")
+
+            gl.glEnableClientState(GL.COLOR_ARRAY);
+            gl.glColorPointer(3, GL.DOUBLE, 0, col.v);
         else
-            gl.glColor3d(col[1], col[2], col[3])
+            -- <opts>.colors is a table
+            gl.glDisableClientState(GL.COLOR_ARRAY);
+            if (#col >= 4) then
+                gl.glColor4d(col[1], col[2], col[3], col[4])
+            else
+                gl.glColor3d(col[1], col[2], col[3])
+            end
         end
     else
+        gl.glDisableClientState(GL.COLOR_ARRAY);
         gl.glColor3d(0.5, 0.5, 0.5)
     end
 
@@ -297,7 +315,7 @@ function glow.draw(primitivetype, verts, opts)
     gl.glVertexPointer(numdims, gltyp, 0, verts.v)
 
     -- Convenience functionality: col is [r g b a]: enable blending
-    local enabledBlend = (col and (#col >= 4) and gl.glIsEnabled(GL.BLEND)==0)
+    local enabledBlend = (colistab and (#col >= 4) and gl.glIsEnabled(GL.BLEND)==0)
     if (enabledBlend) then
         gl.glEnable(GL.BLEND)
     end
