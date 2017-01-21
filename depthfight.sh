@@ -1,5 +1,5 @@
 #!/bin/sh
 
-export LD_LIBRARY_PATH=/usr/lib/nvidia-331:`pwd`
+export LD_LIBRARY_PATH=/usr/lib/nvidia-340:`pwd`
 
 luajit depthfight.lua "$@"
