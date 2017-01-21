@@ -1,0 +1,17 @@
+moonglow: High-level interface to OpenGL+FreeGLUT for LuaJIT
+
+On Ubuntu 16.04, I need to do the following:
+
+ $ export LD_LIBRARY_PATH=/usr/lib/nvidia-340
+
+Otherwise, I'm getting:
+
+ libGL error: No matching fbConfigs or visuals found
+ libGL error: failed to load driver: swrast
+
+
+To try out:
+
+ $ ./testglow.lua
+ $ ./lunart.lua <Duke3D *.ART files...>
+ $ ./depthfight.sh
