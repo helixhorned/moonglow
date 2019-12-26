@@ -1,12 +1,9 @@
 
 OS := $(shell uname -s)
 MINGW := $(findstring MINGW,$(OS))
-#THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 
 ########## PATHS ##########
-
-LJCLANG_DIR := ../ljclang
 
 ifeq ($(OS),Linux)
     GL_H := /usr/include/GL/gl.h
@@ -20,9 +17,7 @@ else
  endif
 endif
 
-luajit := luajit
-#LJCLANG_DIR := $(THIS_DIR)/../ljclang
-extractdecls := LD_LIBRARY_PATH=$(LJCLANG_DIR) LUA_PATH=";;$(LJCLANG_DIR)/?.lua" $(luajit) $(LJCLANG_DIR)/extractdecls.lua -Q
+extractdecls := extractdecls -Q
 
 so := .so
 WARN := -pedantic -Wall -Werror-implicit-function-declaration
