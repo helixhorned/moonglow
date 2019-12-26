@@ -3,8 +3,6 @@
 
 local ffi = require"ffi"
 
-----------
-
 local glow = require("moonglow")
 local gl, glut, GL, GLUT = glow.gl, glow.glut, glow.GL, glow.GLUT
 
@@ -22,6 +20,7 @@ local abs = math.abs
 local string = require("string")
 local format = string.format
 
+----------
 
 -- Create a 2xN 'double' garray matrix from <tab>.
 local function dvec2(tab)
