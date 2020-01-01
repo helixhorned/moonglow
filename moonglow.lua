@@ -337,7 +337,7 @@ local single_GLuint = ffi.typeof("GLuint [1]")
 -- Valid opts keys:
 --  wrap (e.g. GL.CLAMP)
 --  filter (e.g. GL.LINEAR)
-function glow.texture(pic, opts, texname)
+function glow.texture(pic, opts, texname, internal_use_HACK)
     assert(garray.is(pic, 2), "<pic> must be a garray matrix")
     assert(texname == nil or type(texname) == "number",
            "<texname> must be a number if passed")
@@ -391,7 +391,10 @@ function glow.texture(pic, opts, texname)
     -- NOTE:
     --  numcols corresponds to width
     --  numrows corresponds to height
-    gl.glTexImage2D(GL.TEXTURE_2D, 0, glformat, numcols, numrows,
+    local dims = (internal_use_HACK == nil) and { numcols, numrows } or
+        { numrows, numcols }
+
+    gl.glTexImage2D(GL.TEXTURE_2D, 0, glformat, dims[1], dims[2],
                     0, glformat, gltyp, pic.v)
     return texname
 end
