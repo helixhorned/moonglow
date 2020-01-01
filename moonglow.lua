@@ -327,7 +327,9 @@ function glow.draw(primitivetype, verts, opts)
     end
 end
 
--- gltexname = glow.texture(pic [, opts])
+local single_GLuint = ffi.typeof("GLuint [1]")
+
+-- gltexname = glow.texture(pic [, opts [, texname]])
 --
 -- <pic>: a garray, currently only (numrows, numcols)
 -- TODO: a means of specifying that uint32_t is to be interpreted as RGBA
@@ -335,8 +337,10 @@ end
 -- Valid opts keys:
 --  wrap (e.g. GL.CLAMP)
 --  filter (e.g. GL.LINEAR)
-function glow.texture(pic, opts)
+function glow.texture(pic, opts, texname)
     assert(garray.is(pic, 2), "<pic> must be a garray matrix")
+    assert(texname == nil or type(texname) == "number",
+           "<texname> must be a number if passed")
 
     local ts = pic:basetypestr()
     assert(ts=="uint8_t" or ts=="uint32_t", "Texture types other than uint8_t or uint32_t: NYI")
@@ -344,11 +348,15 @@ function glow.texture(pic, opts)
     local numrows, numcols = pic:dims()
     local gltyp = GL.UNSIGNED_BYTE  -- getTexType(pic)
 
-    local texnamear = ffi.new("GLuint [1]")
-    gl.glGenTextures(1, texnamear)
-    local texname = texnamear[0]
+    local isNewTexture = (texname == nil)
 
-    gl.glBindTexture(GL.TEXTURE_2D, texname)
+    if (isNewTexture) then
+        local texnamear = single_GLuint()
+        gl.glGenTextures(1, texnamear)
+        texname = texnamear[0]
+
+        gl.glBindTexture(GL.TEXTURE_2D, texname)
+    end
 
     local opts = opts or {}
 
@@ -373,7 +381,10 @@ function glow.texture(pic, opts)
     gl.glGetTexLevelParameteriv(GL.PROXY_TEXTURE_2D, 0, GL.TEXTURE_WIDTH, tmpwidthar)
 
     if (tmpwidthar[0] == 0) then
-        gl.glDeleteTextures(1, texnamear)
+        if (isNewTexture) then
+            local texnamear = single_GLuint(texname)
+            gl.glDeleteTextures(1, texnamear)
+        end
         error("cannot accomodate texture")
     end
 
