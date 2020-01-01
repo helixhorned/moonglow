@@ -7,7 +7,7 @@ MINGW := $(findstring MINGW,$(OS))
 
 ifeq ($(OS),Linux)
     GL_H := /usr/include/GL/gl.h
-    FREEGLUT_H := /usr/local/include/GL/freeglut.h
+    FREEGLUT_H := /usr/include/GL/freeglut.h
 else
  ifeq ($(MINGW),MINGW)
     GL_H := /c/MinGW/include/GL/gl.h
