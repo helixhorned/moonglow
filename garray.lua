@@ -69,6 +69,13 @@ local garray_mt = {
             return self.size[0], self.size[1]
         end,
 
+        assignFromArray = function(self, array)
+            assert(type(array) == "cdata", "RHS must be an FFI array")
+            local byteCount = ffi.sizeof(self.v, self:numel())
+            assert(ffi.sizeof(array) == byteCount, "sizes must match")
+            ffi.copy(self.v, array, byteCount)
+        end,
+
         addBroadcast = function(self, other)
             assert(garray.is(other), "RHS must be a garray")
             local nr = self.size[0]
