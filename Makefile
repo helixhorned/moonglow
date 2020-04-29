@@ -33,13 +33,11 @@ CONSTS_LUA = glconsts.lua
 
 all: bootstrap #moonglow-aux$(so)
 
-# for the TypedefDecl, e.g. -x 'ARB$' doesn't exclude
-# for the last FunctionDecl, e.g. -x 'ARB$' gives Bash syntax error (???)
 bootstrap:
 	@true ## Extract GL decls
 	@echo 'require("ffi").cdef[[' > $(DECLS_LUA)
-	@$(extractdecls) -w TypedefDecl -p '^GL[a-z]' -x '[*]' -x 64 -x 'ARB' -x 'NV' $(FREEGLUT_H) >> $(DECLS_LUA)
-	@$(extractdecls) -w FunctionDecl -p '^glut' -x GLUTproc -x 'ARB$' -x 'NV$' $(FREEGLUT_H) >> $(DECLS_LUA)
+	@$(extractdecls) -w TypedefDecl -p '^GL[a-z]' -x '^khronos_.*_t$$' -x '[*]' -x 64 -x 'ARB' -x 'NV' $(FREEGLUT_H) >> $(DECLS_LUA)
+	@$(extractdecls) -w FunctionDecl -p '^glut' -x GLUTproc -x 'ARB$$' -x 'NV$$' $(FREEGLUT_H) >> $(DECLS_LUA)
 	@$(extractdecls) -w FunctionDecl -p 'gl[A-Z]' -x 'ATI' -x 'ARB' -x 'MESA' $(GL_H) >> $(DECLS_LUA)
 	@echo ']]' >> $(DECLS_LUA)
 	@printf "\033[1mGenerated $(DECLS_LUA)\033[0m\n"
