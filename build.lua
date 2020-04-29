@@ -5,6 +5,7 @@
 local ffi = require "ffi"
 local io = require "io"
 local bit = require "bit"
+local math = require "math"
 local string = require "string"
 local table = require "table"
 
@@ -418,6 +419,85 @@ local artfile_mt = {
 local ArtHeader_t = ffi.typeof[[struct {
     int32_t artversion, numtiles, localtilestart, localtileend;
 }]]
+
+local int16_array_t = ffi.typeof("int16_t [?]")
+local picanm_array_t = ffi.typeof("$ [?]", picanm_t)
+
+function api.writeart(filename, artTab)
+    assert(type(filename) == "string", "argument #1 must be a string")
+    assert(type(artTab) == "table", "argument #2 must be a table")
+
+    local minTileNum = math.huge
+    local maxTileNum = -math.huge
+
+    local tileSizes = {}
+
+    for tileNum, tileTab in pairs(artTab) do
+        assert(type(tileNum) == "number", "argument #2 must contain only number keys")
+        assert(type(tileTab) == "table", "argument #2 must contain only table values")
+
+        minTileNum = math.min(minTileNum, tileNum)
+        maxTileNum = math.max(maxTileNum, tileNum)
+
+        local sx, sy = tileTab.w, tileTab.h
+        local data = tileTab.data
+
+        assert(type(sx) == "number" and type(sy) == "number",
+               "tile tables must contain keys 'w' and 'h'")
+        assert(type(data) == "cdata", "tile tables must contain key 'data' of cdata type")
+        assert(sx > 0 and sy > 0, "tile width/height must be strictly positive")
+        assert(sx * sy == ffi.sizeof(data), "inconsistent tile width/height and 'data'")
+    end
+
+    assert(minTileNum >= 0 and maxTileNum < MAX.TILES,
+           "Either no tiles in ART table, or some tile numbers out of bounds")
+    assert(minTileNum <= maxTileNum)
+
+    -- Create the binary data.
+
+    local header = ArtHeader_t(0, 0, minTileNum, maxTileNum)
+
+    local tileCount = maxTileNum - minTileNum + 1
+    local tileSizesX = int16_array_t(tileCount)
+    local tileSizesY = int16_array_t(tileCount)
+
+    for tileNum, tileTab in pairs(artTab) do
+        local i = tileNum - minTileNum
+        assert(i >= 0 and i < tileCount)
+        tileSizesX[i] = tileTab.w
+        tileSizesY[i] = tileTab.h
+    end
+
+    -- == Write out the file!
+
+    local f, msg = io.open(filename, "w")
+    if (f == nil) then
+        return false, msg
+    end
+
+    local function write(cdata)
+        f:write(ffi.string(cdata, ffi.sizeof(cdata)))
+    end
+
+    -- Metadata.
+    write(header)
+    write(tileSizesX)
+    write(tileSizesY)
+    write(picanm_array_t(tileCount))
+
+    -- Data.
+    for i = 0, tileCount - 1 do
+        local tileTab = artTab[minTileNum + i]
+        assert(not (i == 0 or i == tileCount - 1) or tileTab ~= nil)
+
+        if (tileTab ~= nil) then
+            f:write(ffi.string(tileTab.data, tileSizesX[i]*tileSizesY[i]))
+        end
+    end
+
+    f:close()
+    return true
+end
 
 -- af, errmsg = artfile(filename [, grpfh, grpofs])
 --
