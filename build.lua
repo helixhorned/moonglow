@@ -1,5 +1,5 @@
 
--- Loaders for various BUILD structures for LuaJIT
+-- Loaders for various BUILD engine structures for LuaJIT
 
 
 local ffi = require "ffi"
@@ -16,7 +16,9 @@ local setmetatable = setmetatable
 local tostring = tostring
 local tonumber = tonumber
 
-module(...)
+----------
+
+local api = {}
 
 local STRUCTDEF = {
     sector = [[
@@ -95,11 +97,11 @@ do
     end
 end
 
-function ismember(what, membname)
+function api.ismember(what, membname)
     return (is_member_tab[what][membname] ~= nil)
 end
 
-MAX =
+local MAX =
 {
     SECTORS = { [7]=1024, [8]=4096, [9]=4096 },
     WALLS = { [7]=8192, [8]=16384, [9]=16384 },
@@ -107,7 +109,7 @@ MAX =
 
     TILES = 30720,
 }
-local MAX = MAX
+api.MAX = MAX
 
 
 -- <dontclose>: if true, don't close file on error
@@ -131,7 +133,7 @@ end
 -- Returns:
 --  on success: <uint8_t [768]> cdata (palette values scaled by 4)
 --  on failure: nil, <errmsg>
-function read_basepal(filename, noquad)
+function api.read_basepal(filename, noquad)
     local fh, errmsg = io.open(filename, "rb")
     if (fh == nil) then
         return nil, errmsg
@@ -263,7 +265,7 @@ end
 --          [1] = { [<bunchnum>]=<number of floors> }
 --      }
 --    }
-function loadboard(filename, do_canonicalize_sprite)
+function api.loadboard(filename, do_canonicalize_sprite)
     local fh, errmsg = io.open(filename, "rb")
 
     if (fh==nil) then
@@ -419,7 +421,7 @@ local artfile_mt = {
 -- Returns:
 --  * on error: nil, <errmsg>
 --  * on success:
-function artfile(filename, grpfh, grpofs)
+function api.artfile(filename, grpfh, grpofs)
     local ogrpofs
     local fh
 
@@ -548,7 +550,7 @@ end
 --      sizx = <cdata (array of length MAXTILES)>
 --      sizy = <cdata (array of length MAXTILES)>
 --    }
-function loadarts(filenames)
+function api.loadarts(filenames)
     local tile = {
         sizx = ffi.new("int16_t [?]", MAX.TILES),
         sizy = ffi.new("int16_t [?]", MAX.TILES),
@@ -608,7 +610,7 @@ function loadarts(filenames)
 end
 
 -- defs [, rdefs] = readdefs(fn [, alsoreverse])
-function readdefs(fn, alsoreverse)
+function api.readdefs(fn, alsoreverse)
     local fh, errmsg = io.open(fn)
 
     if (fh==nil) then
@@ -634,3 +636,6 @@ function readdefs(fn, alsoreverse)
     fh:close()
     return defs, rdefs
 end
+
+-- Done!
+return api
