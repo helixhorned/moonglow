@@ -15,6 +15,7 @@ local print = print
 local setmetatable = setmetatable
 local tostring = tostring
 local tonumber = tonumber
+local type = type
 
 ----------
 
@@ -114,7 +115,11 @@ api.MAX = MAX
 
 -- <dontclose>: if true, don't close file on error
 local function doread(fh, basectype, numelts, dontclose)
+    -- NOTE: *assuming* here that the cdata is a ctype.
+    local isCType = (type(basectype) == "cdata")
+    assert(type(basectype) == "string" or isCType)
     assert(numelts > 0)
+    -- TODO: when numelts == 1, do not create an array type?
     local typ = ffi.typeof("$ [?]", ffi.typeof(basectype))
     local cd = ffi.new(typ, numelts)
 
@@ -410,6 +415,10 @@ local artfile_mt = {
     __metatable = true,
 }
 
+local ArtHeader_t = ffi.typeof[[struct {
+    int32_t artversion, numtiles, localtilestart, localtileend;
+}]]
+
 -- af, errmsg = artfile(filename [, grpfh, grpofs])
 --
 -- <filename>: File name of the file to get data from, expect if <grpfh>
@@ -448,8 +457,7 @@ function api.artfile(filename, grpfh, grpofs)
         return nil, string.format(msg, ...)
     end
 
-    local hdr = doread(fh, "int32_t", 4, dontclose)
-    -- artversion, numtiles, localtilestart, localtileend
+    local hdr = doread(fh, ArtHeader_t, 1, dontclose)
     if (hdr == nil) then
         return err("Couldn't read header")
     end
@@ -459,9 +467,10 @@ function api.artfile(filename, grpfh, grpofs)
         fh = fh,
         grpfh = grpfh or false,  -- GRPFH_FALSE
 
-        tbeg = hdr[2],
-        tend = hdr[3],
-        numtiles = hdr[3]-hdr[2]+1,
+        -- TODO: validate version (and numtiles?)
+        tbeg = hdr[0].localtilestart,
+        tend = hdr[0].localtileend,
+        numtiles = hdr[0].localtileend - hdr[0].localtilestart + 1,
 
         -- Members inserted later:
         -- sizx, sizy: picanm: arrays of length af.numtiles
@@ -498,6 +507,7 @@ function api.artfile(filename, grpfh, grpofs)
     end
 
     af.tiledataofs = assert(fh:seek())
+    -- TODO: signed? (In order to accomodate '-1' as invalid marker.)
     af.offs = ffi.new("uint32_t [?]", af.numtiles)
 
     local curofs = 0
@@ -564,16 +574,15 @@ function api.loadarts(filenames)
             return nil, errmsg
         end
 
-        local cd = doread(fh, "int32_t", 4)
-        -- artversion, numtiles, localtilestart, localtileend
+        local cd = doread(fh, ArtHeader_t, 1)
         if (cd==nil) then
             fh:close()
             return nil, fn..": Couldn't read header"
         end
 
-        local localtilestart = cd[2]
-        local numtileshere = cd[3]-localtilestart+1
---        print(fn.. ": "..cd[2].. ", "..cd[3])
+        -- TODO: validate version (and numtiles?)
+        local localtilestart = cd[0].localtilestart
+        local numtileshere = cd[0].localtileend - localtilestart + 1
 
         if (numtileshere < 0 or localtilestart+numtileshere >= MAX.TILES) then
             fh:close()
