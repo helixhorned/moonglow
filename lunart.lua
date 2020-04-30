@@ -222,9 +222,6 @@ local function display_cb()
     local msg = ("Tiles per line: %d | Selected: %s"):format(tilesperline, selStr)
     glow.text({20, h - 16}, 12, msg)
 
---    local ti = d.tileinf
---    glow.text({20, h/3+20}, 14, format("Tile %d: %d x %d", ti.num, ti.w, ti.h))
-
     assert(gl.glGetError() == GL.NO_ERROR)
 
     glut.glutSwapBuffers()
@@ -460,7 +457,7 @@ local function AppData()
         mdown = false;
 
         -- The width (and height) of a single tile square.
-        rectw = 80;
+        rectw = 70;
 
         -- [filename] = <ArtFileWrapper object>
         artwraps = {};
