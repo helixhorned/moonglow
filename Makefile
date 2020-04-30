@@ -19,10 +19,6 @@ endif
 
 extractdecls := extractdecls -Q
 
-so := .so
-WARN := -pedantic -Wall -Werror-implicit-function-declaration
-CFLAGS :=
-
 DECLS_LUA = gldecls.lua
 CONSTS_LUA = glconsts.lua
 
@@ -31,7 +27,7 @@ CONSTS_LUA = glconsts.lua
 
 .PHONY: bootstrap all
 
-all: bootstrap #moonglow-aux$(so)
+all: bootstrap
 
 bootstrap:
 	@true ## Extract GL decls
@@ -50,6 +46,3 @@ bootstrap:
 	@echo '}]])' >> $(CONSTS_LUA)
 	@echo 'return {GL=GL,GLUT=GLUT}' >> $(CONSTS_LUA)
 	@printf "\033[1mGenerated $(CONSTS_LUA)\033[0m\n"
-
-moonglow-aux$(so): moonglow-aux.c
-	$(CC) $(WARN) $(CFLAGS) -shared -fPIC $< -o $@
