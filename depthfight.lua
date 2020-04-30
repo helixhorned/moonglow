@@ -344,7 +344,7 @@ end
 
 
 local function createAppWindow()
-    local extent = {1620, 1000-40}
+    local extent = {800, 600}
 
     local wi = glow.window({name="Depth fighting test app",
                             pos={20, 10}, extent=extent},
