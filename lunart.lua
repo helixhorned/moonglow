@@ -79,6 +79,7 @@ local function ptinrect(x, y, r)
         x <= r.v[2] and y <= r.v[3]
 end
 
+-- Returns: is selected?
 local function drawTile(aw, ltile, rect, mx, my)
     local v = rect.v
     -- Rect points:
@@ -109,11 +110,16 @@ local function drawTile(aw, ltile, rect, mx, my)
     local c = (tex and 0.2 or 0.7)
     glow.draw(GL.LINE_LOOP, rpts, {colors={c, c, c}})
 
+    local isSelected = false
+
     if (tex ~= nil) then
         if (ptinrect(mx, my, rect)) then
             glow.draw(GL.LINE_LOOP, rpts, {colors={1,1,0.4}})
+            isSelected = true
         end
     end
+
+    return isSelected
 end
 
 -- Compare two ArtFileWrapper objects.
@@ -174,6 +180,7 @@ local function display_cb()
 
     local w, h = d.w, d.h
     local tilesperline, startx, rw, dx = getTileLineDims(d)
+    local selectedTile = nil
     local dy = dx
 
     local rect = ivec2{0,0; rw,rw} + startx
@@ -190,7 +197,9 @@ local function display_cb()
         local tilesdrawn = 0
         -- Draw tiles of one ArtFileWrapper collection (the one given by index awi)
         for lt = startltile,endltile do
-            drawTile(aw, lt, rect, d.mx, d.my)
+            local isSelected = drawTile(aw, lt, rect, d.mx, d.my)
+            selectedTile = isSelected and aw.artf.tbeg + lt
+                or selectedTile
             tilesdrawn = tilesdrawn + 1
 
             rect:addBroadcast(ivec2{rw+dx,0})
@@ -207,6 +216,11 @@ local function display_cb()
         end
     end
 ::end_draw_tiles::
+
+    local selStr = selectedTile == nil and "(no tile)" or format(
+        "tile %d (0x%x)", selectedTile, selectedTile)
+    local msg = ("Tiles per line: %d | Selected: %s"):format(tilesperline, selStr)
+    glow.text({20, h - 16}, 12, msg)
 
 --    local ti = d.tileinf
 --    glow.text({20, h/3+20}, 14, format("Tile %d: %d x %d", ti.num, ti.w, ti.h))
