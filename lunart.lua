@@ -314,9 +314,27 @@ local function key_both_cb(key, x, y)
     end
 end
 
+local function mouse_cb(button, state, x, y)
+    local MWHEEL_UP = 3
+    local MWHEEL_DOWN = 4
+
+    local KeyForWheel = {
+        [MWHEEL_UP] = GLUT.KEY_UP,
+        [MWHEEL_DOWN] = GLUT.KEY_DOWN,
+    }
+
+    local key = KeyForWheel[button]
+    if (state == GLUT.DOWN and key ~= nil) then
+        key_both_cb(key, x, y)
+    end
+end
+
 local g_callbacks = {
-    Display=display_cb, MotionBoth=motion_both_cb,
-    Reshape=reshape_cb, KeyBoth=key_both_cb,
+    Display = display_cb,
+    KeyBoth = key_both_cb,
+    MotionBoth = motion_both_cb,
+    Mouse = mouse_cb,
+    Reshape = reshape_cb,
 }
 
 

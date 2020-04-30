@@ -131,8 +131,7 @@ function glow.window(opts, callbacks)
             glut.glutKeyboardFunc(onKeyboard)
             glut.glutSpecialFunc(onSpecial)
         else
-            -- Uncomment to make e.g. both 'display' and 'Display' valid:
---            local cbname2 = cbname:sub(1,1):upper() .. cbname:sub(2)
+            -- TODO: validate?
             glut["glut"..cbname.."Func"](cbfunc)
         end
     end
