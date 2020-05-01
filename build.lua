@@ -1,13 +1,15 @@
 
 -- Loaders for various BUILD engine structures for LuaJIT
 
-
 local ffi = require "ffi"
+
 local io = require "io"
 local bit = require "bit"
 local math = require "math"
 local string = require "string"
 local table = require "table"
+
+local art_table = require("art_table")
 
 local error = error
 local assert = assert
@@ -427,28 +429,7 @@ function api.writeart(filename, artTab)
     assert(type(filename) == "string", "argument #1 must be a string")
     assert(type(artTab) == "table", "argument #2 must be a table")
 
-    local minTileNum = math.huge
-    local maxTileNum = -math.huge
-
-    local tileSizes = {}
-
-    for tileNum, tileTab in pairs(artTab) do
-        assert(type(tileNum) == "number", "argument #2 must contain only number keys")
-        assert(type(tileTab) == "table", "argument #2 must contain only table values")
-
-        minTileNum = math.min(minTileNum, tileNum)
-        maxTileNum = math.max(maxTileNum, tileNum)
-
-        local sx, sy = tileTab.w, tileTab.h
-        local data = tileTab.data
-
-        assert(type(sx) == "number" and type(sy) == "number",
-               "tile tables must contain keys 'w' and 'h'")
-        assert(type(data) == "cdata", "tile tables must contain key 'data' of cdata type")
-        assert(sx > 0 and sy > 0, "tile width/height must be strictly positive")
-        assert(sx * sy == ffi.sizeof(data), "inconsistent tile width/height and 'data'")
-    end
-
+    local minTileNum, maxTileNum = art_table.validate(artTab)
     assert(minTileNum >= 0 and maxTileNum < MAX.TILES,
            "Either no tiles in ART table, or some tile numbers out of bounds")
     assert(minTileNum <= maxTileNum)
@@ -468,7 +449,7 @@ function api.writeart(filename, artTab)
         tileSizesY[i] = tileTab.h
     end
 
-    -- == Write out the file!
+    --== Write out the file!
 
     local f, msg = io.open(filename, "w")
     if (f == nil) then
