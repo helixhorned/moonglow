@@ -25,12 +25,14 @@ CONSTS_LUA = glconsts.lua
 
 ########## RULES ##########
 
-.PHONY: all clean
+.PHONY: all clean committed-generated
 
 all: $(DECLS_LUA) $(CONSTS_LUA)
 
 clean:
 	$(RM) $(DECLS_LUA) $(CONSTS_LUA)
+
+committed-generated: all
 
 $(DECLS_LUA): Makefile $(FREEGLUT_H) $(GL_H)
 	@echo 'require("ffi").cdef[[' > $@
