@@ -1,7 +1,12 @@
 
+########## User options ##########
+
+MOONGLOW_EXTRACTDECLS ?= extractdecls
+
+########## Platform ##########
+
 OS := $(shell uname -s)
 MINGW := $(findstring MINGW,$(OS))
-
 
 ########## PATHS ##########
 
@@ -17,7 +22,7 @@ else
  endif
 endif
 
-extractdecls := extractdecls -Q
+extractdecls := $(MOONGLOW_EXTRACTDECLS) -Q
 
 DECLS_LUA = gldecls.lua
 CONSTS_LUA = glconsts.lua
@@ -33,6 +38,8 @@ clean:
 	$(RM) $(DECLS_LUA) $(CONSTS_LUA)
 
 committed-generated: all
+
+# TODO: remove target file on failure.
 
 $(DECLS_LUA): Makefile $(FREEGLUT_H) $(GL_H)
 	@echo 'require("ffi").cdef[[' > $@
